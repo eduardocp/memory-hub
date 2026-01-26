@@ -5,6 +5,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { FocusPage } from './pages/FocusPage';
+import { BrainPage } from './pages/BrainPage';
 
 import { SocketProvider } from './context/SocketContext';
 
@@ -12,15 +14,21 @@ function App() {
   return (
     <BrowserRouter>
       <SocketProvider>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<TimelinePage />} />
-              <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-            </Routes>
-          </Layout>
+          <Routes>
+             <Route path="/focus" element={<FocusPage />} />
+             <Route path="*" element={
+                <Layout>
+                  <Routes>
+                    <Route path="/" element={<TimelinePage />} />
+                    <Route path="/projects" element={<ProjectsPage />} />
+                    <Route path="/calendar" element={<CalendarPage />} />
+                    <Route path="/brain" element={<BrainPage />} />
+                    <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                  </Routes>
+                </Layout>
+             } />
+          </Routes>
       </SocketProvider>
     </BrowserRouter>
   );

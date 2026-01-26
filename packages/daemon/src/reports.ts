@@ -1,8 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateText } from './ai.js';
 import { format, subDays, isSameDay, getDay, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import db from './db.js';
+
+
 
 // Paths
 const TEMPLATES_DIR = path.join(process.cwd(), 'src', 'templates');
@@ -149,16 +151,10 @@ export async function generateReport(templateId: string, project?: string, optio
     else finalPrompt = finalPrompt.replace(/{{project}}/g, "All Projects");
 
     // 4. Call AI
-    const apiKey = getSetting('gemini_key') || process.env.GEMINI_KEY;
-    if (!apiKey) throw new Error('Gemini API Key not found in Settings or ENV');
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" }); // More stable model
-
     console.log(`Generating report '${template.name}'...`);
-    const result = await model.generateContent(finalPrompt);
-    const response = await result.response;
-    const text = response.text();
+
+    // Use the central AI service (supports Gemini, OpenAI, Claude)
+    const text = await generateText(finalPrompt, "You are a helpful project management assistant generating reports.");
 
     return {
         template: template.name,
@@ -166,3 +162,5 @@ export async function generateReport(templateId: string, project?: string, optio
         contextUsed: contextData
     };
 }
+
+

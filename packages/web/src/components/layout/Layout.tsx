@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Settings, Box, Folder, Plus, Calendar, Sparkles, FileText } from 'lucide-react';
+import { Home, Settings, Box, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useSocket } from '../../context/SocketContext';
 
@@ -15,6 +15,7 @@ export function Layout({ children }: LayoutProps) {
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
     { icon: Folder, label: 'Projects', path: '/projects' },
+    { icon: Share2, label: 'Brain', path: '/brain' },
     { icon: Calendar, label: 'Calendar', path: '/calendar' },
     { icon: FileText, label: 'Reports', path: '/reports' },
     { icon: Settings, label: 'Settings', path: '/settings' },
@@ -72,6 +73,18 @@ export function Layout({ children }: LayoutProps) {
             );
           })}
         </nav>
+
+        {/* Productivity Tools */}
+        <div className="px-3 mt-2 mb-2">
+           <div className="px-3 py-2 text-xs font-medium text-secondary/60 uppercase tracking-wider">Tools</div>
+           <button
+                onClick={() => window.open('/focus', 'MemoryHubFocus', 'width=500,height=700,menubar=no,toolbar=no,location=no,status=no')}
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm font-medium transition-all text-secondary hover:text-white hover:bg-surface"
+            >
+                <Target size={18} className="text-secondary group-hover:text-accent" />
+                <span>Focus HUD</span>
+            </button>
+        </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-border/40">

@@ -11,6 +11,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { listTemplates, generateReport } from './reports.js';
 import { gitService } from './git.js';
+import { generateDailySummary, generateConnections, AI_PROVIDERS } from './ai.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -282,7 +283,7 @@ app.post('/settings', (req, res) => {
     }
 });
 
-import { generateDailySummary } from './ai.js';
+
 
 app.post('/summary/generate', async (req, res) => {
     const { project } = req.body;
@@ -311,6 +312,23 @@ app.get('/templates', (req, res) => {
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
+});
+
+// AI Graph Connections
+app.post('/ai/connections', async (req, res) => {
+    try {
+        const { project } = req.body;
+        const connections = await generateConnections(project);
+        res.json({ success: true, connections });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// AI Models List
+app.get('/ai/models', (req, res) => {
+    res.json(AI_PROVIDERS);
 });
 
 app.post('/reports/generate', async (req, res) => {
