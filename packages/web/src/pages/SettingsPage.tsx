@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Save, Lock, Cpu, Key, Activity } from 'lucide-react';
+import { Save, Lock, Cpu, Key, Activity, Eye, EyeOff } from 'lucide-react';
 
 const API_URL = 'http://localhost:3000';
 
@@ -21,6 +21,13 @@ export function SettingsPage() {
   const [openaiKey, setOpenaiKey] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
+
+  // Visibility States
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+
+  const toggleKey = (field: string) => {
+    setShowKeys(prev => ({ ...prev, [field]: !prev[field] }));
+  };
 
   useEffect(() => {
     fetchData();
@@ -154,13 +161,22 @@ export function SettingsPage() {
                             <span>Google Gemini Key</span>
                             {aiProvider === 'gemini' && <span className="text-[10px] text-accent bg-accent/10 px-1.5 rounded">Active</span>}
                         </label>
-                        <input 
-                        type="password"
-                        className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all"
-                        value={geminiKey}
-                        onChange={e => setGeminiKey(e.target.value)}
-                        placeholder="AIza..."
-                        />
+                        <div className="relative">
+                            <input 
+                                type={showKeys['gemini'] ? 'text' : 'password'}
+                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
+                                value={geminiKey}
+                                onChange={e => setGeminiKey(e.target.value)}
+                                placeholder="AIza..."
+                            />
+                            <button
+                                type="button"
+                                onClick={() => toggleKey('gemini')}
+                                className="absolute right-3 top-2.5 text-secondary hover:text-white focus:outline-none"
+                            >
+                                {showKeys['gemini'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                        </div>
                     </div>
 
                     {/* OpenAI */}
@@ -169,13 +185,22 @@ export function SettingsPage() {
                             <span>OpenAI Key</span>
                             {aiProvider === 'openai' && <span className="text-[10px] text-accent bg-accent/10 px-1.5 rounded">Active</span>}
                         </label>
-                        <input 
-                        type="password"
-                        className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all"
-                        value={openaiKey}
-                        onChange={e => setOpenaiKey(e.target.value)}
-                        placeholder="sk-..."
-                        />
+                        <div className="relative">
+                             <input 
+                                type={showKeys['openai'] ? 'text' : 'password'}
+                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
+                                value={openaiKey}
+                                onChange={e => setOpenaiKey(e.target.value)}
+                                placeholder="sk-..."
+                            />
+                            <button
+                                type="button"
+                                onClick={() => toggleKey('openai')}
+                                className="absolute right-3 top-2.5 text-secondary hover:text-white focus:outline-none"
+                            >
+                                {showKeys['openai'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Anthropic */}
@@ -184,13 +209,22 @@ export function SettingsPage() {
                             <span>Anthropic Key</span>
                             {aiProvider === 'anthropic' && <span className="text-[10px] text-accent bg-accent/10 px-1.5 rounded">Active</span>}
                         </label>
-                        <input 
-                        type="password"
-                        className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all"
-                        value={anthropicKey}
-                        onChange={e => setAnthropicKey(e.target.value)}
-                        placeholder="sk-ant-..."
-                        />
+                         <div className="relative">
+                            <input 
+                                type={showKeys['anthropic'] ? 'text' : 'password'}
+                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
+                                value={anthropicKey}
+                                onChange={e => setAnthropicKey(e.target.value)}
+                                placeholder="sk-ant-..."
+                            />
+                            <button
+                                type="button"
+                                onClick={() => toggleKey('anthropic')}
+                                className="absolute right-3 top-2.5 text-secondary hover:text-white focus:outline-none"
+                            >
+                                {showKeys['anthropic'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                        </div>
                     </div>
                   </div>
               </div>
