@@ -203,11 +203,12 @@ export async function generateDailySummary(project: string) {
     const endIso = today.toISOString();
 
     const events = db.prepare(`
-        SELECT * FROM events 
-        WHERE project = ? 
-        AND timestamp >= ? 
-        AND timestamp < ?
-        ORDER BY timestamp ASC
+        SELECT e.* FROM events e
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE p.name = ? 
+        AND e.timestamp >= ? 
+        AND e.timestamp < ?
+        ORDER BY e.timestamp ASC
     `).all(project, startIso, endIso) as any[];
 
     if (events.length === 0) return null;
@@ -255,15 +256,19 @@ export async function generateDailySummary(project: string) {
 }
 
 export async function generateConnections(project?: string) {
-    let query = 'SELECT id, type, text, timestamp FROM events';
+    let query = `
+        SELECT e.id, e.type, e.text, e.timestamp 
+        FROM events e
+        LEFT JOIN projects p ON e.project_id = p.id
+    `;
     const params: any[] = [];
 
     if (project) {
-        query += ' WHERE project = ?';
+        query += ' WHERE p.name = ?';
         params.push(project);
     }
 
-    query += ' ORDER BY timestamp DESC LIMIT 200';
+    query += ' ORDER BY e.timestamp DESC LIMIT 200';
 
     const events = db.prepare(query).all(...params) as any[];
     if (events.length < 2) return [];
@@ -288,4 +293,48 @@ export async function generateConnections(project?: string) {
     if (Array.isArray(result)) return result;
     if (result.connections && Array.isArray(result.connections)) return result.connections;
     return [];
+}
+
+export async function askBrain(query: string, project?: string) {
+    // 1. Fetch relevant history (Long Context approach)
+    // Get last 500 events (usually covers weeks of work)
+    let sql = `
+        SELECT e.* FROM events e
+        LEFT JOIN projects p ON e.project_id = p.id
+    `;
+    const params: any[] = [];
+
+    if (project) {
+        sql += ' WHERE p.name = ?';
+        params.push(project);
+    }
+
+    sql += ' ORDER BY e.timestamp DESC LIMIT 500';
+
+    const events = db.prepare(sql).all(...params) as any[];
+
+    if (events.length === 0) {
+        return "I don't have enough memories stored yet to answer that.";
+    }
+
+    const context = events.reverse().map(e =>
+        `[${e.timestamp}] [${e.type}] ${e.source ? `(${e.source}) ` : ''}: ${e.text}`
+    ).join('\n');
+
+    const prompt = `
+        You are the user's "Second Brain". You have access to their development logs and memories below.
+        
+        USER QUESTION: "${query}"
+        
+        MEMORY STREAM (Context):
+        ${context}
+        
+        INSTRUCTIONS:
+        - Answer based ONLY on the provided memory stream.
+        - If you find the answer, cite the specific event date or ID if possible.
+        - If the answer isn't in the memories, say so politely.
+        - Be helpful, technical, and concise.
+    `;
+
+    return await generateText(prompt, "You are a helpful knowledgeable coding assistant.");
 }

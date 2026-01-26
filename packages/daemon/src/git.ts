@@ -15,6 +15,12 @@ export class GitService {
      * and syncs commits from the current user.
      */
     async syncAllProjects() {
+        const setting = db.prepare("SELECT value FROM settings WHERE key = 'system.git_sync_enabled'").get() as { value: string } | undefined;
+        if (setting && setting.value === 'false') {
+            // console.log('Git Sync skipped (disabled)');
+            return;
+        }
+
         console.log('Starting Git Sync...');
         const projects = db.prepare('SELECT * FROM projects').all() as { id: string, path: string, name: string }[];
 
@@ -46,41 +52,37 @@ export class GitService {
     }
 
     private async syncProject(project: { id: string, path: string, name: string }) {
+        // ... (findGitRoot logic)
         const gitRoot = this.findGitRoot(project.path);
+        if (!gitRoot) return;
 
-        if (!gitRoot) {
-            // console.log(`[Git] No .git found for ${project.name} (checked up to root)`);
-            return;
-        }
-
-        // 1. Get User Email
+        // ... (User Email logic stays same)
         let userEmail = '';
         try {
             const { stdout } = await execPromise('git config user.email', { cwd: gitRoot });
             userEmail = stdout.trim();
-        } catch {
-            return; // Git config not found or error
-        }
-
+        } catch { return; }
         if (!userEmail) return;
 
-        // 2. Determine time range (default to 24h ago if first run, or last check)
-        // Actually, we should check DB for latest git event to be safer across restarts
-        const lastEvent = db.prepare("SELECT timestamp FROM events WHERE project = ? AND source = 'git' ORDER BY timestamp DESC LIMIT 1").get(project.name) as { timestamp: string };
+        // 2. Check last event (Update query to use JOIN)
+        const lastEvent = db.prepare(`
+            SELECT e.timestamp 
+            FROM events e 
+            LEFT JOIN projects p ON e.project_id = p.id
+            WHERE p.name = ? AND e.source = 'git' 
+            ORDER BY e.timestamp DESC LIMIT 1
+        `).get(project.name) as { timestamp: string };
 
+        // ... (sinceOption logic stays same)
         let sinceOption = '';
         if (lastEvent) {
-            // Add 1 second to avoid duplicates boundary
             const date = new Date(lastEvent.timestamp);
             date.setSeconds(date.getSeconds() + 1);
             sinceOption = `--since="${date.toISOString()}"`;
         } else {
-            // If never synced, get last 7 days maybe? Or just today? Let's do 3 days safe.
             sinceOption = '--since="3 days ago"';
         }
 
-        // 3. Fetch Commits
-        // Format: Hash|ISO-Date|Message
         const cmd = `git log --author="${userEmail}" ${sinceOption} --pretty=format:"%H|%aI|%s" --no-merges`;
 
         try {
@@ -88,20 +90,19 @@ export class GitService {
             if (!stdout.trim()) return;
 
             const lines = stdout.split('\n');
+            // FIX: Use project_id
             const insert = db.prepare(`
-                INSERT OR IGNORE INTO events (id, timestamp, type, text, project, source)
-                VALUES (?, ?, 'git_commit', ?, ?, 'git')
+                INSERT OR IGNORE INTO events (id, timestamp, type, text, project_id, source, created_at)
+                VALUES (?, ?, 'git_commit', ?, ?, 'git', datetime('now'))
             `);
 
             db.transaction(() => {
                 for (const line of lines) {
                     if (!line.trim()) continue;
                     const [hash, date, msg] = line.split('|');
-
-                    // ID will be "git-<hash>" to ensure global uniqueness and idempotency
                     const id = `git-${hash}`;
 
-                    insert.run(id, date, msg, project.name);
+                    insert.run(id, date, msg, project.id);
                     console.log(`[Git] Imported commit: ${msg} (${project.name})`);
                 }
             })();

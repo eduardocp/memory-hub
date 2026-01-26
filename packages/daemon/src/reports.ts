@@ -87,21 +87,26 @@ export async function generateReport(templateId: string, project?: string, optio
 
     // Helper to fetch events
     const fetchEvents = (start: Date, end: Date) => {
-        let query = 'SELECT * FROM events WHERE timestamp >= ? AND timestamp <= ?';
+        let query = `
+            SELECT e.* 
+            FROM events e
+            LEFT JOIN projects p ON e.project_id = p.id
+            WHERE e.timestamp >= ? AND e.timestamp <= ?
+        `;
         const params: any[] = [start.toISOString(), end.toISOString()];
 
         if (project) {
-            query += ' AND project = ?';
+            query += ' AND p.name = ?';
             params.push(project);
         }
 
         if (options?.onlyCommits) {
-            query += " AND source = 'git'";
+            query += " AND e.source = 'git'";
         } else if (!options?.includeCommits) {
-            query += " AND (source IS NOT 'git' OR source IS NULL)";
+            query += " AND (e.source IS NOT 'git' OR e.source IS NULL)";
         }
 
-        query += ' ORDER BY timestamp ASC';
+        query += ' ORDER BY e.timestamp ASC';
         return db.prepare(query).all(...params);
     };
 

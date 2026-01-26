@@ -83,6 +83,13 @@
       "type": "task_update",
       "text": "Architecture Decision: Migrated frontend-daemon communication from REST polling to WebSocket (Socket.IO) for real-time updates. REST API endpoints are maintained as fallback for external tools, debugging, and compatibility with MCP Server which operates independently via filesystem.",
       "project": "memory-hub"
+    },
+    {
+      "id": "2c3c1a21-b3c8-4f94-99d7-90298ec27fb8",
+      "timestamp": "2026-01-26T20:20:55.632Z",
+      "type": "idea",
+      "text": "Ideia futura: Captura de Contexto Web (Browser Extension) para salvar URLs e snippets de pesquisa diretamente no Memory Hub.",
+      "project": "memory-hub"
     }
   ]
 }

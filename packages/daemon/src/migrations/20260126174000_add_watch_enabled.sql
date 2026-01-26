@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN watch_enabled INTEGER DEFAULT 1;

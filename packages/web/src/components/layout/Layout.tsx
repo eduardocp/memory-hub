@@ -1,7 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Settings, Box, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2 } from 'lucide-react';
+import { Home, Settings, Box, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import { useSocket } from '../../context/SocketContext';
+import { AskBrainFn } from '../AskBrainFn';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ export function Layout({ children }: LayoutProps) {
     { icon: Folder, label: 'Projects', path: '/projects' },
     { icon: Share2, label: 'Brain', path: '/brain' },
     { icon: Calendar, label: 'Calendar', path: '/calendar' },
+    { icon: Zap, label: 'Automations', path: '/triggers' },
     { icon: FileText, label: 'Reports', path: '/reports' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
@@ -124,6 +126,7 @@ export function Layout({ children }: LayoutProps) {
             {children}
          </div>
       </main>
+      <AskBrainFn />
     </div>
   );
 }

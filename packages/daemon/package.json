@@ -10,10 +10,12 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/generative-ai": "^0.24.1",
+    "@types/node-cron": "^3.0.11",
     "better-sqlite3": "^11.0.0",
     "chokidar": "^3.6.0",
     "cors": "^2.8.5",
     "express": "^4.19.0",
+    "node-cron": "^4.2.1",
     "openai": "^6.16.0",
     "socket.io": "^4.8.3",
     "uuid": "^9.0.1"

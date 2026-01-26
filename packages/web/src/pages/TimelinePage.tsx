@@ -6,6 +6,9 @@ import ReactMarkdown from 'react-markdown';
 import { useToast, ToastContainer } from '../components/Toast';
 import axios from 'axios';
 import { useSocket } from '../context/SocketContext';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 // Types
 interface HelperEvent {
@@ -37,12 +40,37 @@ const EVENT_TYPES = [
     { value: 'git_commit', label: 'Git Commits' },
 ];
 
+const NOTE_TYPES = [
+    { value: 'note', label: 'Note' },
+    { value: 'idea', label: 'Idea' },
+    { value: 'task_update', label: 'Task Update' },
+    { value: 'new_bug', label: 'New Bug' },
+    { value: 'bug_update', label: 'Bug Update' },
+    { value: 'new_feat', label: 'New Feature' },
+    { value: 'spike_progress', label: 'Spike Progress' },
+    { value: 'summary', label: 'Summary' },
+];
+
 const DATE_FILTERS = [
     { value: 'all', label: 'All Time' },
     { value: 'today', label: 'Today' },
     { value: 'yesterday', label: 'Yesterday' },
     { value: 'week', label: 'Last 7 Days' },
 ];
+
+// Schemas
+const projectSchema = z.object({
+    name: z.string().min(1, "Project name is required"),
+    path: z.string().min(1, "Absolute path is required"),
+});
+type ProjectFormData = z.infer<typeof projectSchema>;
+
+const noteSchema = z.object({
+    project: z.string().min(1, "Project is required"),
+    type: z.string(),
+    text: z.string().min(1, "Content is required"),
+});
+type NoteFormData = z.infer<typeof noteSchema>;
 
 export function TimelinePage() {
   const [events, setEvents] = useState<HelperEvent[]>([]);
@@ -62,13 +90,33 @@ export function TimelinePage() {
   const [dateRange, setDateRange] = useState('all');
   const [showGit, setShowGit] = useState(false);
 
-  // Form States
-  const [noteText, setNoteText] = useState('');
-  const [noteType, setNoteType] = useState('note');
-  const [noteProject, setNoteProject] = useState('');
-  
-  const [projectPath, setProjectPath] = useState('');
-  const [projectName, setProjectName] = useState('');
+  // Forms
+  const { 
+      register: registerProject, 
+      handleSubmit: handleSubmitProject, 
+      reset: resetProject,
+      formState: { errors: projectErrors } 
+  } = useForm<ProjectFormData>({
+      // Cast to any to bypass version mismatch between Zod 4 and Resolver (expects Zod 3 internals)
+      resolver: zodResolver(projectSchema as any)
+  });
+
+  const { 
+      register: registerNote, 
+      handleSubmit: handleSubmitNote, 
+      reset: resetNote,
+      setValue: setNoteValue,
+      watch: watchNote,
+      formState: { errors: noteErrors } 
+  } = useForm<NoteFormData>({
+      resolver: zodResolver(noteSchema as any),
+      defaultValues: {
+          type: 'note',
+          text: ''
+      }
+  });
+
+  const watchedNoteProject = watchNote('project');
 
   // Fetch data via WebSocket
   const fetchEventsViaSocket = useCallback((term: string = '', type: string = 'all', range: string = 'all') => {
@@ -125,14 +173,17 @@ export function TimelinePage() {
     socket.emit('projects:list', (response: any) => {
       if (response.success) {
         setProjects(response.data);
-        if (response.data.length > 0 && !noteProject) {
-          setNoteProject(response.data[0].name);
-        }
       } else {
         console.error('Failed to fetch projects:', response.error);
       }
     });
-  }, [noteProject, socket]);
+  }, [socket]);
+
+  useEffect(() => {
+      if (projects.length > 0 && !watchedNoteProject) {
+          setNoteValue('project', projects[0].name);
+      }
+  }, [projects, watchedNoteProject, setNoteValue]);
 
   useEffect(() => {
     if (!socket || !isConnected) return;
@@ -163,7 +214,7 @@ export function TimelinePage() {
         socket.off('projects:deleted', onProjectDeleted);
         document.removeEventListener('open-note-modal', handleOpenModal);
     };
-  }, [socket, isConnected, fetchProjectsViaSocket]); // Removed fetchEventsViaSocket from dependency, managed by debounce effect only
+  }, [socket, isConnected, fetchProjectsViaSocket]);
 
   // Debounce search and filters
   useEffect(() => {
@@ -180,7 +231,7 @@ export function TimelinePage() {
         addToast('No projects available to summarize.', 'error');
         return;
     }
-    const targetProject = noteProject || projects[0].name;
+    const targetProject = (watchedNoteProject) || projects[0].name;
 
     setGeneratingSummary(true);
     try {
@@ -198,18 +249,19 @@ export function TimelinePage() {
     }
   };
 
-  const handleAddNote = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!noteText || !noteProject || !socket) return;
+  const onAddNoteSubmit = (data: NoteFormData) => {
+    if (!socket) return;
 
     socket.emit('events:add', {
-        text: noteText,
-        type: noteType,
-        project: noteProject
+        text: data.text,
+        type: data.type,
+        project: data.project
     }, (response: any) => {
         if (response.success) {
             setNoteModalOpen(false);
-            setNoteText('');
+            resetNote();
+            // Re-set default project
+            if (projects.length > 0) setNoteValue('project', projects[0].name);
             addToast('Note added successfully!', 'success');
         } else {
             addToast(response.error || 'Failed to add note', 'error');
@@ -217,18 +269,16 @@ export function TimelinePage() {
     });
   };
 
-  const handleAddProject = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!projectPath || !projectName || !socket) return;
+  const onAddProjectSubmit = (data: ProjectFormData) => {
+    if (!socket) return;
 
     socket.emit('projects:add', {
-        path: projectPath,
-        name: projectName
+        path: data.path,
+        name: data.name
     }, (response: any) => {
         if (response.success) {
             setProjectModalOpen(false);
-            setProjectPath('');
-            setProjectName('');
+            resetProject();
             addToast('Project added successfully!', 'success');
         } else {
             addToast(response.error || 'Failed to add project', 'error');
@@ -367,10 +417,10 @@ export function TimelinePage() {
                             )}>
                                 {event.type.replace('_', ' ')}
                             </span>
-                            <span className="text-xs text-secondary/50">•</span>
-                            <span className="text-xs text-secondary font-medium flex items-center gap-1">
-                                <Folder size={10} />
-                                {event.project}
+                            <span className="text-secondary/50 mx-1">•</span>
+                            <span className="text-[10px] md:text-xs text-primary/80 bg-surface border border-white/10 px-2 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm">
+                                <Folder size={10} className="text-blue-400" />
+                                {event.project || 'Unknown'}
                             </span>
                             
                             {/* Source Badges */}
@@ -426,25 +476,31 @@ export function TimelinePage() {
                         <X size={20} />
                     </button>
                 </div>
-                <form onSubmit={handleAddProject}>
+                <form onSubmit={handleSubmitProject(onAddProjectSubmit)}>
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-medium text-secondary mb-1">Project Name</label>
                             <input 
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent"
-                                value={projectName}
-                                onChange={e => setProjectName(e.target.value)}
+                                {...registerProject('name')}
+                                className={clsx(
+                                    "w-full bg-background border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent",
+                                    projectErrors.name ? "border-red-500/50 focus:border-red-500" : "border-border"
+                                )}
                                 placeholder="my-awesome-project"
                             />
+                            {projectErrors.name && <span className="text-red-400 text-xs mt-1 block">{projectErrors.name.message}</span>}
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-secondary mb-1">Absolute Path</label>
                             <input 
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent"
-                                value={projectPath}
-                                onChange={e => setProjectPath(e.target.value)}
+                                {...registerProject('path')}
+                                className={clsx(
+                                    "w-full bg-background border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent",
+                                    projectErrors.path ? "border-red-500/50 focus:border-red-500" : "border-border"
+                                )}
                                 placeholder="C:/Users/Dev/Values/Project"
                             />
+                            {projectErrors.path && <span className="text-red-400 text-xs mt-1 block">{projectErrors.path.message}</span>}
                         </div>
                         <div className="pt-2 flex justify-end">
                             <button type="submit" className="bg-accent text-white px-4 py-2 rounded text-sm font-medium hover:bg-opacity-90">
@@ -467,46 +523,46 @@ export function TimelinePage() {
                         <X size={20} />
                     </button>
                 </div>
-                <form onSubmit={handleAddNote}>
+                <form onSubmit={handleSubmitNote(onAddNoteSubmit)}>
                     <div className="space-y-4">
                          <div>
                             <label className="block text-xs font-medium text-secondary mb-1">Project</label>
                             <select 
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent"
-                                value={noteProject}
-                                onChange={e => setNoteProject(e.target.value)}
+                                {...registerNote('project')}
+                                className={clsx(
+                                    "w-full bg-background border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent",
+                                    noteErrors.project ? "border-red-500/50 focus:border-red-500" : "border-border"
+                                )}
                             >
                                 <option value="" disabled>Select a project</option>
                                 {projects.map(p => (
                                     <option key={p.id} value={p.name}>{p.name}</option>
                                 ))}
                             </select>
+                            {noteErrors.project && <span className="text-red-400 text-xs mt-1 block">{noteErrors.project.message}</span>}
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-secondary mb-1">Type</label>
                             <select 
+                                {...registerNote('type')}
                                 className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent"
-                                value={noteType}
-                                onChange={e => setNoteType(e.target.value)}
                             >
-                                <option value="note">Note</option>
-                                <option value="idea">Idea</option>
-                                <option value="task_update">Task Update</option>
-                                <option value="new_bug">New Bug</option>
-                                <option value="bug_update">Bug Update</option>
-                                <option value="new_feat">New Feature</option>
-                                <option value="spike_progress">Spike Progress</option>
-                                <option value="summary">Summary</option>
+                                {NOTE_TYPES.map(type => (
+                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                ))}
                             </select>
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-secondary mb-1">Content</label>
                             <textarea 
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent min-h-[100px]"
-                                value={noteText}
-                                onChange={e => setNoteText(e.target.value)}
+                                {...registerNote('text')}
+                                className={clsx(
+                                    "w-full bg-background border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent min-h-[100px]",
+                                    noteErrors.text ? "border-red-500/50 focus:border-red-500" : "border-border"
+                                )}
                                 placeholder="What's on your mind?"
                             />
+                            {noteErrors.text && <span className="text-red-400 text-xs mt-1 block">{noteErrors.text.message}</span>}
                         </div>
                         <div className="pt-2 flex justify-end">
                             <button type="submit" className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-200">

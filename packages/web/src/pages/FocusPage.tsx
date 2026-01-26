@@ -4,12 +4,20 @@ import clsx from 'clsx';
 import { useSocket } from '../context/SocketContext';
 import { useToast, ToastContainer } from '../components/Toast';
 import { useNavigate } from 'react-router-dom';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+const focusSchema = z.object({
+    task: z.string().min(1, "What are you working on?"),
+    project: z.string().min(1, "Project is required")
+});
+
+type FocusFormData = z.infer<typeof focusSchema>;
 
 export function FocusPage() {
     const [isRunning, setIsRunning] = useState(false);
     const [seconds, setSeconds] = useState(0);
-    const [task, setTask] = useState('');
-    const [project, setProject] = useState('');
     const [projects, setProjects] = useState<{name: string}[]>([]); 
     
     // UI State
@@ -20,16 +28,34 @@ export function FocusPage() {
     const navigate = useNavigate();
     const timerRef = useRef<number | undefined>(undefined);
 
+    const {
+        register,
+        handleSubmit,
+        setValue,
+        watch,
+        reset,
+        formState: { errors }
+    } = useForm<FocusFormData>({
+        resolver: zodResolver(focusSchema as any),
+        defaultValues: {
+            task: '',
+            project: ''
+        }
+    });
+
+    const watchedProject = watch('project');
+
     // Load projects
     useEffect(() => {
         if (!socket) return;
         socket.emit('projects:list', (res: any) => {
             if (res.success) {
                 setProjects(res.data);
-                if (res.data.length > 0) setProject(res.data[0].name);
+                if (res.data.length > 0) setValue('project', res.data[0].name);
             }
         });
-    }, [socket]);
+    }, [socket, setValue]);
+
     // Timer Logic
     useEffect(() => {
         if (isRunning) {
@@ -56,7 +82,7 @@ export function FocusPage() {
         setIsFinished(true);
     };
 
-    const handleSave = () => {
+    const onSubmit = (data: FocusFormData) => {
         if (!socket) return;
         
         // Clean text: "Task Name (45m)"
@@ -64,10 +90,10 @@ export function FocusPage() {
         const minutes = Math.ceil(seconds / 60);
         const timeTag = minutes < 60 ? `${minutes}m` : `${(minutes/60).toFixed(1)}h`;
         
-        const finalContent = `${task} (Focus: ${timeTag})`;
+        const finalContent = `${data.task} (Focus: ${timeTag})`;
 
         socket.emit('events:add', {
-            project,
+            project: data.project,
             type: 'task_update',
             text: finalContent,
             source: 'user'
@@ -77,7 +103,8 @@ export function FocusPage() {
                 // Reset
                 setSeconds(0);
                 setIsFinished(false);
-                setTask('');
+                setValue('task', '');
+                // Keep project as is
             } else {
                 addToast('Failed to save session', 'error');
             }
@@ -88,6 +115,10 @@ export function FocusPage() {
         setIsFinished(false);
         setSeconds(0);
         setIsRunning(false);
+        reset({
+            task: '',
+            project: watchedProject // Keep selected project
+        });
     };
 
     return (
@@ -122,17 +153,19 @@ export function FocusPage() {
                 {/* Task Input */}
                 <div className="w-full">
                     {!isFinished ? (
-                         <input 
-                            value={task}
-                            onChange={(e) => setTask(e.target.value)}
-                            placeholder="What are you working on?"
-                            className="w-full bg-transparent text-center text-xl placeholder:text-secondary/30 focus:outline-none border-b border-white/10 focus:border-accent pb-2 transition-all font-medium"
-                            disabled={isFinished} // Disable, don't remove, to keep layout
-                         />
+                        <div className="flex flex-col items-center">
+                             <input 
+                                {...register('task')}
+                                placeholder="What are you working on?"
+                                className="w-full bg-transparent text-center text-xl placeholder:text-secondary/30 focus:outline-none border-b border-white/10 focus:border-accent pb-2 transition-all font-medium"
+                                disabled={isFinished} 
+                             />
+                             {errors.task && <span className="text-red-400 text-xs mt-2">{errors.task.message}</span>}
+                        </div>
                     ) : (
                          <div className="text-center animate-in fade-in slide-in-from-bottom-4">
                             <h2 className="text-2xl font-bold text-green-400 mb-1">Session Complete</h2>
-                            <p className="text-secondary text-sm">Log this to {project}?</p>
+                            <p className="text-secondary text-sm">Log this to {watchedProject}?</p>
                          </div>
                     )}
                 </div>
@@ -141,8 +174,7 @@ export function FocusPage() {
                 {!isFinished && (
                     <div className="w-full max-w-xs">
                         <select 
-                            value={project}
-                            onChange={(e) => setProject(e.target.value)}
+                            {...register('project')}
                             className="w-full bg-surface/50 text-secondary text-xs text-center py-1 rounded-full border border-white/5 focus:outline-none focus:border-accent/50 appearance-none cursor-pointer hover:bg-surface"
                         >
                             {projects.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
@@ -198,7 +230,7 @@ export function FocusPage() {
                                 Discard
                             </button>
                             <button 
-                                onClick={handleSave}
+                                onClick={handleSubmit(onSubmit)}
                                 className="px-6 py-2 rounded-lg bg-green-500 text-black font-bold hover:bg-green-400 shadow-lg shadow-green-500/20 transition-all"
                             >
                                 Save to Memory

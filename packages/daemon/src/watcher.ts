@@ -46,14 +46,40 @@ export class Watcher {
     }
 
     public loadProjectsFromDB() {
-        const stmt = db.prepare('SELECT path FROM projects');
-        const projects = stmt.all() as { path: string }[];
+        const stmt = db.prepare('SELECT name, path, watch_enabled FROM projects');
+        const projects = stmt.all() as { name: string, path: string, watch_enabled: number }[];
+
+        // Ideally we should sync current watched paths with DB state
+        // For now, let's just add enabled ones. chokidar handles duplicates gracefully.
         for (const p of projects) {
-            this.addProject(p.path);
+            if (p.watch_enabled !== 0) {
+                this.addProject(p.path);
+            } else {
+                this.removeProject(p.path); // Ensure removed if disabled
+            }
+        }
+    }
+
+    public updateProjectWatch(projectName: string, enable: boolean) {
+        const row = db.prepare('SELECT path FROM projects WHERE name = ?').get(projectName) as { path: string } | undefined;
+        if (!row) {
+            console.error(`Project ${projectName} not found`);
+            return;
+        }
+
+        if (enable) {
+            this.addProject(row.path);
+        } else {
+            this.removeProject(row.path);
         }
     }
 
     private async handleFileChange(filePath: string) {
+        const setting = db.prepare("SELECT value FROM settings WHERE key = 'system.file_watcher_enabled'").get() as { value: string } | undefined;
+        if (setting && setting.value === 'false') {
+            return;
+        }
+
         console.log(`File changed: ${filePath}`);
         try {
             if (!fs.existsSync(filePath)) return;
@@ -66,19 +92,42 @@ export class Watcher {
 
             // Updated query to handle updates on existing IDs
             const insert = db.prepare(`
-                INSERT INTO events (id, timestamp, type, text, project, source, created_at)
-                VALUES (@id, @timestamp, @type, @text, @project, COALESCE(@source, 'file'), datetime('now'))
+                INSERT INTO events (id, timestamp, type, text, project_id, source, created_at)
+                VALUES (@id, @timestamp, @type, @text, @project_id, COALESCE(@source, 'file'), datetime('now'))
                 ON CONFLICT(id) DO UPDATE SET
                     timestamp = excluded.timestamp,
                     type = excluded.type,
                     text = excluded.text,
-                    project = excluded.project,
+                    project_id = excluded.project_id,
                     source = excluded.source
             `);
 
+            // Cache project IDs to avoid repetitive selects
+            const projectIdCache = new Map<string, string>();
+            const getProjectId = (name: string): string | null => {
+                if (projectIdCache.has(name)) return projectIdCache.get(name)!;
+                const row = db.prepare('SELECT id FROM projects WHERE name = ?').get(name) as { id: string } | undefined;
+                if (row) {
+                    projectIdCache.set(name, row.id);
+                    return row.id;
+                }
+                return null; // Or handle 'unknown' project
+            };
+
             const insertMany = db.transaction((events: MemoryEvent[]) => {
                 for (const event of events) {
-                    insert.run(event);
+                    const projectName = event.project || 'unknown';
+                    const pid = getProjectId(projectName);
+
+                    if (pid) {
+                        insert.run({
+                            ...event,
+                            project_id: pid,
+                            source: event.source || 'manual'
+                        });
+                    } else {
+                        console.warn(`Skipping event ${event.id}: Project '${projectName}' not found in DB.`);
+                    }
                 }
             });
 

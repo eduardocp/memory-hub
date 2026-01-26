@@ -1,13 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Trash2, Folder, FolderPlus, X, Edit2, Play, Activity } from 'lucide-react';
+import { Trash2, Folder, FolderPlus, X, Edit2, Play, Activity, PauseCircle, PlayCircle } from 'lucide-react';
 import { useToast, ToastContainer } from '../components/Toast';
 import { useSocket } from '../context/SocketContext';
+import clsx from 'clsx';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 interface Project {
   id: string;
   path: string;
   name: string;
+  watch_enabled: number;
 }
+
+const projectFormSchema = z.object({
+  name: z.string().min(1, "Project name is required"),
+  path: z.string().min(1, "Path is required"),
+  watch_enabled: z.boolean(),
+});
+
+type ProjectFormData = z.infer<typeof projectFormSchema>;
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -15,10 +28,22 @@ export function ProjectsPage() {
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   
-  const [newPath, setNewPath] = useState('');
-  const [newName, setNewName] = useState('');
   const { toasts, addToast, removeToast } = useToast();
   const { socket, isConnected } = useSocket();
+
+  const { 
+      register, 
+      handleSubmit, 
+      reset, 
+      formState: { errors } 
+  } = useForm<ProjectFormData>({
+      resolver: zodResolver(projectFormSchema as any),
+      defaultValues: {
+          name: '',
+          path: '',
+          watch_enabled: true
+      }
+  });
 
   const fetchProjectsViaSocket = useCallback(() => {
     if (!socket) return;
@@ -54,32 +79,33 @@ export function ProjectsPage() {
 
   const openAddModal = () => {
     setEditingProject(null);
-    setNewName('');
-    setNewPath('');
+    reset({ name: '', path: '', watch_enabled: true });
     setModalOpen(true);
   };
 
   const openEditModal = (p: Project) => {
     setEditingProject(p);
-    setNewName(p.name);
-    setNewPath(p.path);
+    reset({ 
+        name: p.name, 
+        path: p.path, 
+        watch_enabled: p.watch_enabled !== 0 
+    });
     setModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPath || !newName || !socket) return;
+  const onSubmit = (data: ProjectFormData) => {
+    if (!socket) return;
 
     if (editingProject) {
       // Update via socket
       socket.emit('projects:update', {
         id: editingProject.id,
-        path: newPath
+        path: data.path,
+        name: data.name,
+        watch_enabled: data.watch_enabled
       }, (response: any) => {
         if (response.success) {
           setModalOpen(false);
-          setNewPath('');
-          setNewName('');
           setEditingProject(null);
           addToast('Project updated!', 'success');
         } else {
@@ -89,13 +115,13 @@ export function ProjectsPage() {
     } else {
       // Add via socket
       socket.emit('projects:add', {
-        path: newPath,
-        name: newName
+        path: data.path,
+        name: data.name,
+        watch_enabled: data.watch_enabled
       }, (response: any) => {
         if (response.success) {
           setModalOpen(false);
-          setNewPath('');
-          setNewName('');
+          reset();
           addToast('Project added!', 'success');
         } else {
           addToast(response.error || 'Failed to add project', 'error');
@@ -105,6 +131,7 @@ export function ProjectsPage() {
   };
 
   const handleDelete = (id: string) => {
+    if (!confirm('Are you sure? This will stop monitoring but keep files.')) return;
     if (!socket) return;
 
     socket.emit('projects:delete', { id }, (response: any) => {
@@ -143,49 +170,54 @@ export function ProjectsPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map(p => (
-            <div key={p.id} className="group bg-card hover:bg-surface border border-border/40 hover:border-accent/40 rounded-2xl p-6 transition-all duration-300 relative overflow-hidden">
+        {projects.map(p => {
+            const isActive = p.watch_enabled !== 0;
+            return (
+            <div key={p.id} className="group bg-card hover:bg-surface border border-border/40 hover:border-accent/40 rounded-2xl p-6 transition-all duration-300 relative overflow-hidden flex flex-col justify-between h-[220px]">
                 {/* Decorative gradient blob */}
-                <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent/5 rounded-full blur-3xl group-hover:bg-accent/10 transition-colors" />
+                <div className={clsx("absolute -top-10 -right-10 w-32 h-32 rounded-full blur-3xl transition-colors duration-500", isActive ? "bg-accent/5 group-hover:bg-accent/10" : "bg-gray-500/5 group-hover:bg-gray-500/10")} />
 
-                <div className="flex items-start justify-between mb-6 relative">
-                    <div className="w-12 h-12 bg-background rounded-xl border border-border/50 flex items-center justify-center text-accent shadow-sm group-hover:scale-105 transition-transform">
-                        <Folder size={24} strokeWidth={1.5} />
+                <div>
+                    <div className="flex items-start justify-between mb-6 relative">
+                        <div className={clsx("w-12 h-12 rounded-xl border border-border/50 flex items-center justify-center shadow-sm group-hover:scale-105 transition-all", isActive ? "bg-background text-accent" : "bg-background/50 text-secondary")}>
+                            <Folder size={24} strokeWidth={1.5} />
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0">
+                             <button 
+                                onClick={() => openEditModal(p)}
+                                className="p-2 text-secondary hover:text-white hover:bg-background rounded-lg transition-colors"
+                                title="Edit project settings"
+                             >
+                                <Edit2 size={16} />
+                             </button>
+                             <button 
+                                onClick={() => handleDelete(p.id)}
+                                className="p-2 text-secondary hover:text-red-400 hover:bg-background rounded-lg transition-colors"
+                                title="Remove project"
+                             >
+                                <Trash2 size={16} />
+                             </button>
+                        </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0">
-                         <button 
-                            onClick={() => openEditModal(p)}
-                            className="p-2 text-secondary hover:text-white hover:bg-background rounded-lg transition-colors"
-                            title="Edit path"
-                         >
-                            <Edit2 size={16} />
-                         </button>
-                         <button 
-                            onClick={() => handleDelete(p.id)}
-                            className="p-2 text-secondary hover:text-red-400 hover:bg-background rounded-lg transition-colors"
-                            title="Remove project"
-                         >
-                            <Trash2 size={16} />
-                         </button>
+
+                    <div className="relative">
+                        <h3 className="font-semibold text-lg text-primary mb-1 truncate" title={p.name}>{p.name}</h3>
+                        <p className="text-xs text-secondary font-mono truncate opacity-60 group-hover:opacity-100 transition-opacity" title={p.path}>
+                            {p.path}
+                        </p>
                     </div>
                 </div>
 
-                <div className="relative">
-                    <h3 className="font-semibold text-lg text-primary mb-1">{p.name}</h3>
-                    <p className="text-xs text-secondary font-mono truncate opacity-60 group-hover:opacity-100 transition-opacity">
-                        {p.path}
-                    </p>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-border/30 flex items-center justify-between text-xs text-secondary">
+                <div className="pt-4 border-t border-border/30 flex items-center justify-between text-xs text-secondary">
                     <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-success"></div>
-                        <span>Active</span>
+                        <div className={clsx("w-1.5 h-1.5 rounded-full shadow-[0_0_5px_currentColor]", isActive ? "bg-green-400 text-green-400" : "bg-yellow-500 text-yellow-500")}></div>
+                        <span>{isActive ? 'Monitoring Active' : 'Monitoring Paused'}</span>
                     </div>
-                    <span>Last active: Today</span>
+                    {/* Could show last active time here */}
                 </div>
             </div>
-        ))}
+            );
+        })}
 
         {!loading && projects.length === 0 && (
             <div className="col-span-full py-16 border-2 border-dashed border-border/40 rounded-2xl flex flex-col items-center justify-center text-secondary/60 hover:border-accent/30 hover:bg-card/30 transition-all cursor-pointer" onClick={openAddModal}>
@@ -200,9 +232,9 @@ export function ProjectsPage() {
 
       {/* Add/Edit Project Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
             <div className="bg-[#1c1c1f] border border-border rounded-2xl p-8 w-full max-w-lg shadow-2xl scale-100 animate-scale-in">
-                <div className="flex justify-between items-start mb-8">
+                <div className="flex justify-between items-start mb-6">
                     <div>
                         <h2 className="text-xl font-semibold tracking-tight">{editingProject ? 'Edit Project' : 'New Project'}</h2>
                         <p className="text-sm text-secondary mt-1">Connect a local directory to Memory Hub.</p>
@@ -211,39 +243,62 @@ export function ProjectsPage() {
                         <X size={20} />
                     </button>
                 </div>
-                <form onSubmit={handleSave}>
+                <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="space-y-6">
                         <div>
                             <label className="block text-xs font-medium text-secondary mb-2 uppercase tracking-wider">Project Name</label>
                             <div className="relative">
                                 <Activity className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" size={16} />
                                 <input 
-                                    className="w-full bg-[#0e0e11] border border-border rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-secondary/30 disabled:opacity-50"
-                                    value={newName}
-                                    onChange={e => setNewName(e.target.value)}
+                                    {...register('name')}
+                                    className={clsx(
+                                        "w-full bg-[#0e0e11] border rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-secondary/30 disabled:opacity-50",
+                                        errors.name ? "border-red-500/50" : "border-border"
+                                    )}
                                     placeholder="e.g. Memory Hub"
-                                    disabled={!!editingProject} 
+                                   
                                     autoFocus
                                 />
                             </div>
+                            {errors.name && <span className="text-red-400 text-xs mt-1 block">{errors.name.message}</span>}
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-secondary mb-2 uppercase tracking-wider">Absolute Path</label>
                             <div className="relative">
                                 <Folder className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" size={16} />
                                 <input 
-                                    className="w-full bg-[#0e0e11] border border-border rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-secondary/30"
-                                    value={newPath}
-                                    onChange={e => setNewPath(e.target.value)}
+                                    {...register('path')}
+                                    className={clsx(
+                                        "w-full bg-[#0e0e11] border rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-secondary/30",
+                                        errors.path ? "border-red-500/50" : "border-border"
+                                    )}
                                     placeholder="e.g. C:/Users/Dev/Values/Project"
                                     spellCheck={false}
                                 />
                             </div>
+                            {errors.path && <span className="text-red-400 text-xs mt-1 block">{errors.path.message}</span>}
                             <p className="text-[11px] text-secondary/60 mt-2 flex items-center gap-1">
                                 <Play size={10} className="fill-current" />
                                 A <code>memory.json</code> file will be created in this root.
                             </p>
                         </div>
+
+                        {/* Watcher Toggle */}
+                        <div className="flex items-center justify-between bg-surface/30 p-4 rounded-lg border border-border/30">
+                            <div>
+                                <label className="block text-sm font-medium text-white mb-0.5">File Watcher</label>
+                                <p className="text-xs text-secondary">Monitor changes in memory.json automatically.</p>
+                            </div>
+                             <label className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="sr-only peer" 
+                                    {...register('watch_enabled')}
+                                />
+                                <div className="w-11 h-6 bg-[#0e0e11] border border-white/10 rounded-full peer peer-focus:ring-2 peer-focus:ring-accent/50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+                            </label>
+                        </div>
+
                         <div className="pt-4 flex justify-end gap-3">
                             <button 
                                 type="button" 

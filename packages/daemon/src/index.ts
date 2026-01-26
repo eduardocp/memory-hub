@@ -11,7 +11,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { listTemplates, generateReport } from './reports.js';
 import { gitService } from './git.js';
-import { generateDailySummary, generateConnections, AI_PROVIDERS } from './ai.js';
+import { generateDailySummary, generateConnections, generateText, askBrain, AI_PROVIDERS } from './ai.js';
+import { initScheduler, scheduleTrigger, removeTriggerJob } from './scheduler.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -32,6 +33,7 @@ initDB();
 // Initialize Watcher
 const watcher = new Watcher(io);
 watcher.loadProjectsFromDB();
+initScheduler();
 
 // Start Git Sync Loop (every 10 minutes)
 setInterval(() => {
@@ -142,34 +144,56 @@ app.delete('/projects/:id', (req, res) => {
     }
 });
 
+app.post('/projects/:name/watch', (req, res) => {
+    const { name } = req.params;
+    const { enabled } = req.body;
+
+    try {
+        const info = db.prepare('UPDATE projects SET watch_enabled = ? WHERE name = ?').run(enabled ? 1 : 0, name);
+        if (info.changes > 0) {
+            watcher.updateProjectWatch(name, enabled);
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Project not found' });
+        }
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/events', (req, res) => {
     const { project, type, limit = 100, offset = 0 } = req.query;
 
-    let query = 'SELECT * FROM events WHERE 1=1';
+    let query = `
+        SELECT e.*, p.name as project 
+        FROM events e 
+        LEFT JOIN projects p ON e.project_id = p.id 
+        WHERE 1=1
+    `;
     const params: any[] = [];
 
     if (project) {
-        query += ' AND project = ?';
+        query += ' AND p.name = ?';
         params.push(project);
     }
     if (req.query.query) {
-        query += ' AND text LIKE ?';
+        query += ' AND e.text LIKE ?';
         params.push(`%${req.query.query}%`);
     }
     if (req.query.startDate) {
-        query += ' AND timestamp >= ?';
+        query += ' AND e.timestamp >= ?';
         params.push(req.query.startDate);
     }
     if (req.query.endDate) {
-        query += ' AND timestamp <= ?';
+        query += ' AND e.timestamp <= ?';
         params.push(req.query.endDate);
     }
     if (type) {
-        query += ' AND type = ?';
+        query += ' AND e.type = ?';
         params.push(type);
     }
 
-    query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY e.timestamp DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     const events = db.prepare(query).all(...params);
@@ -331,6 +355,74 @@ app.get('/ai/models', (req, res) => {
     res.json(AI_PROVIDERS);
 });
 
+app.post('/ai/chat', async (req, res) => {
+    try {
+        const { query, project } = req.body;
+        if (!query) return res.status(400).json({ error: 'Query is required' });
+
+        const answer = await askBrain(query, project);
+        res.json({ success: true, answer });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---- TRIGGERS API ----
+app.get('/triggers', (req, res) => {
+    try {
+        const triggers = db.prepare('SELECT * FROM triggers ORDER BY created_at DESC').all();
+        res.json(triggers);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/triggers', (req, res) => {
+    try {
+        const { id, name, type, schedule, action, config, enabled } = req.body;
+
+        let finalId = id;
+        if (!finalId) finalId = uuidv4();
+
+        const configStr = typeof config === 'object' ? JSON.stringify(config) : config;
+
+        const stmt = db.prepare(`
+            INSERT INTO triggers (id, name, type, schedule, action, config, enabled, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                type = excluded.type,
+                schedule = excluded.schedule,
+                action = excluded.action,
+                config = excluded.config,
+                enabled = excluded.enabled
+        `);
+
+        stmt.run(finalId, name, type, schedule, action, configStr, enabled ? 1 : 0);
+
+        // Update Scheduler
+        const trigger = db.prepare('SELECT * FROM triggers WHERE id = ?').get(finalId);
+        scheduleTrigger(trigger);
+
+        res.json({ success: true, trigger });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/triggers/:id', (req, res) => {
+    try {
+        const { id } = req.params;
+        db.prepare('DELETE FROM triggers WHERE id = ?').run(id);
+        removeTriggerJob(id);
+        res.json({ success: true });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/reports/generate', async (req, res) => {
     const { templateId, project, options } = req.body;
     if (!templateId) return res.status(400).json({ error: 'templateId is required' });
@@ -355,36 +447,41 @@ io.on('connection', (socket) => {
     socket.on('events:list', (params, callback) => {
         try {
             const { project, type, limit = 100, offset = 0 } = params || {};
-            let query = 'SELECT * FROM events WHERE 1=1';
+            let query = `
+                SELECT e.*, p.name as project 
+                FROM events e 
+                LEFT JOIN projects p ON e.project_id = p.id 
+                WHERE 1=1
+            `;
             const queryParams: any[] = [];
 
             if (project) {
-                query += ' AND project = ?';
+                query += ' AND p.name = ?';
                 queryParams.push(project);
             }
             if (type) {
-                query += ' AND type = ?';
+                query += ' AND e.type = ?';
                 queryParams.push(type);
             }
             if (params?.query) {
-                query += ' AND text LIKE ?';
+                query += ' AND e.text LIKE ?';
                 queryParams.push(`%${params.query}%`);
             }
             if (params?.startDate) {
-                query += ' AND timestamp >= ?';
+                query += ' AND e.timestamp >= ?';
                 queryParams.push(params.startDate);
             }
             if (params?.endDate) {
-                query += ' AND timestamp <= ?';
+                query += ' AND e.timestamp <= ?';
                 queryParams.push(params.endDate);
             }
 
             // Exclude git commits by default unless requested (to keep main timeline clean)
             if (!params?.includeGit) {
-                query += " AND (source IS NOT 'git' OR source IS NULL)";
+                query += " AND (e.source IS NOT 'git' OR e.source IS NULL)";
             }
 
-            query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+            query += ' ORDER BY e.timestamp DESC LIMIT ? OFFSET ?';
             queryParams.push(limit, offset);
 
             const events = db.prepare(query).all(...queryParams);
@@ -401,7 +498,7 @@ io.on('connection', (socket) => {
                 return callback({ success: false, error: 'project and text are required' });
             }
 
-            const projectRow = db.prepare('SELECT path FROM projects WHERE name = ?').get(project) as { path: string } | undefined;
+            const projectRow = db.prepare('SELECT id, path FROM projects WHERE name = ?').get(project) as { id: string, path: string } | undefined;
             if (!projectRow) {
                 return callback({ success: false, error: 'Project not found' });
             }
@@ -429,8 +526,8 @@ io.on('connection', (socket) => {
             fs.writeFileSync(memoryPath, JSON.stringify(memory, null, 2));
 
             // Also insert into DB for queries
-            const stmt = db.prepare('INSERT INTO events (id, timestamp, type, text, project, source) VALUES (?, ?, ?, ?, ?, ?)');
-            stmt.run(newEvent.id, newEvent.timestamp, newEvent.type, newEvent.text, newEvent.project, 'user');
+            const stmt = db.prepare('INSERT INTO events (id, timestamp, type, text, project_id, source) VALUES (?, ?, ?, ?, ?, ?)');
+            stmt.run(newEvent.id, newEvent.timestamp, newEvent.type, newEvent.text, projectRow.id, 'user');
 
             // Broadcast to all clients
             io.emit('events:new', newEvent);
@@ -480,31 +577,53 @@ io.on('connection', (socket) => {
 
     socket.on('projects:update', (data, callback) => {
         try {
-            const { id, path: newPath } = data;
-            if (!id || !newPath) {
-                return callback({ success: false, error: 'id and path are required' });
+            const { id, path: newPath, name: newName, watch_enabled } = data;
+            if (!id) {
+                return callback({ success: false, error: 'id is required' });
             }
 
-            const oldProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as { id: string, path: string, name: string } | undefined;
+            const oldProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as { id: string, path: string, name: string, watch_enabled: number } | undefined;
             if (!oldProject) {
                 return callback({ success: false, error: 'Project not found' });
             }
 
-            const stmt = db.prepare('UPDATE projects SET path = ? WHERE id = ?');
-            stmt.run(newPath, id);
+            const updates: string[] = [];
+            const params: any[] = [];
 
-            watcher.removeProject(oldProject.path);
+            if (newPath) { updates.push('path = ?'); params.push(newPath); }
+            if (newName) { updates.push('name = ?'); params.push(newName); }
+            if (watch_enabled !== undefined) { updates.push('watch_enabled = ?'); params.push(watch_enabled ? 1 : 0); }
 
-            const memoryPath = path.join(newPath, 'memory.json');
-            if (!fs.existsSync(memoryPath)) {
-                const dir = path.dirname(memoryPath);
-                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                fs.writeFileSync(memoryPath, JSON.stringify({ events: [] }, null, 2));
+            if (updates.length > 0) {
+                params.push(id);
+                db.prepare(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`).run(...params);
             }
 
-            watcher.addProject(newPath);
+            // --- Watcher Sync ---
+            const finalPath = newPath || oldProject.path;
+            const finalEnabled = watch_enabled !== undefined ? watch_enabled : (oldProject.watch_enabled !== 0);
 
-            const updatedProject = { ...oldProject, path: newPath };
+            // Path changed?
+            if (newPath && newPath !== oldProject.path) {
+                watcher.removeProject(oldProject.path); // Remove old
+
+                // Ensure new file exists
+                const memoryPath = path.join(newPath, 'memory.json');
+                if (!fs.existsSync(memoryPath)) {
+                    const dir = path.dirname(memoryPath);
+                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                    fs.writeFileSync(memoryPath, JSON.stringify({ events: [] }, null, 2));
+                }
+            }
+
+            // Sync status
+            if (finalEnabled) {
+                watcher.addProject(finalPath);
+            } else {
+                watcher.removeProject(finalPath);
+            }
+
+            const updatedProject = { ...oldProject, path: finalPath, name: newName || oldProject.name, watch_enabled: finalEnabled ? 1 : 0 };
             io.emit('projects:updated', updatedProject);
             callback({ success: true, project: updatedProject });
         } catch (err: any) {

@@ -1,29 +1,65 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Save, Lock, Cpu, Key, Activity, Eye, EyeOff } from 'lucide-react';
+import { Save, Lock, Cpu, Key, Activity, Eye, EyeOff, Zap } from 'lucide-react';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 const API_URL = 'http://localhost:3000';
+
+const settingsSchema = z.object({
+  // Global
+  file_watcher_enabled: z.boolean(),
+  git_sync_enabled: z.boolean(),
+  
+  // AI
+  ai_provider: z.string(),
+  ai_model: z.string().optional(),
+  openai_key: z.string().optional(),
+  gemini_key: z.string().optional(),
+  anthropic_key: z.string().optional(),
+
+  // Integrations
+  slack_token: z.string().optional(),
+  jira_url: z.string().optional(),
+  jira_email: z.string().optional(),
+  jira_token: z.string().optional(),
+});
+
+type SettingsFormData = z.infer<typeof settingsSchema>;
 
 export function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [modelsConfig, setModelsConfig] = useState<any>({});
-
-  // Form states
-  const [slackToken, setSlackToken] = useState('');
-  const [jiraUrl, setJiraUrl] = useState('');
-  const [jiraEmail, setJiraEmail] = useState('');
-  const [jiraToken, setJiraToken] = useState('');
   
-  // AI States
-  const [aiProvider, setAiProvider] = useState('gemini');
-  const [aiModel, setAiModel] = useState('');
-  
-  const [openaiKey, setOpenaiKey] = useState('');
-  const [geminiKey, setGeminiKey] = useState('');
-  const [anthropicKey, setAnthropicKey] = useState('');
-
   // Visibility States
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+
+  const {
+      register,
+      handleSubmit,
+      reset,
+      watch
+  } = useForm<SettingsFormData>({
+      resolver: zodResolver(settingsSchema as any),
+      defaultValues: {
+          file_watcher_enabled: true,
+          git_sync_enabled: true,
+          ai_provider: 'gemini',
+          ai_model: '',
+          openai_key: '',
+          gemini_key: '',
+          anthropic_key: '',
+          slack_token: '',
+          jira_url: '',
+          jira_email: '',
+          jira_token: '',
+      }
+  });
+
+  const watchedAiProvider = watch('ai_provider');
+  const watchedFileWatcher = watch('file_watcher_enabled');
+  const watchedGitSync = watch('git_sync_enabled');
 
   const toggleKey = (field: string) => {
     setShowKeys(prev => ({ ...prev, [field]: !prev[field] }));
@@ -42,18 +78,23 @@ export function SettingsPage() {
       ]);
       
       const settings = settingsRes.data;
-      setSlackToken(settings['slack_token'] || '');
-      setJiraUrl(settings['jira_url'] || '');
-      setJiraEmail(settings['jira_email'] || '');
-      setJiraToken(settings['jira_token'] || '');
       
-      setOpenaiKey(settings['openai_key'] || '');
-      setGeminiKey(settings['gemini_key'] || '');
-      setAnthropicKey(settings['anthropic_key'] || '');
-      
-      setAiProvider(settings['ai_provider'] || 'gemini');
-      setAiModel(settings['ai_model'] || '');
-      
+      reset({
+          file_watcher_enabled: settings['system.file_watcher_enabled'] !== 'false',
+          git_sync_enabled: settings['system.git_sync_enabled'] !== 'false',
+          
+          ai_provider: settings['ai_provider'] || 'gemini',
+          ai_model: settings['ai_model'] || '',
+          openai_key: settings['openai_key'] || '',
+          gemini_key: settings['gemini_key'] || '',
+          anthropic_key: settings['anthropic_key'] || '', 
+          
+          slack_token: settings['slack_token'] || '',
+          jira_url: settings['jira_url'] || '',
+          jira_email: settings['jira_email'] || '',
+          jira_token: settings['jira_token'] || '',
+      });
+
       setModelsConfig(modelsRes.data);
 
     } catch (e) {
@@ -67,20 +108,22 @@ export function SettingsPage() {
     await axios.post(`${API_URL}/settings`, { key, value, category });
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: SettingsFormData) => {
     try {
       await Promise.all([
-        saveSetting('slack_token', slackToken, 'integrations'),
-        saveSetting('jira_url', jiraUrl, 'integrations'),
-        saveSetting('jira_email', jiraEmail, 'integrations'),
-        saveSetting('jira_token', jiraToken, 'integrations'),
+        saveSetting('slack_token', data.slack_token || '', 'integrations'),
+        saveSetting('jira_url', data.jira_url || '', 'integrations'),
+        saveSetting('jira_email', data.jira_email || '', 'integrations'),
+        saveSetting('jira_token', data.jira_token || '', 'integrations'),
         
-        saveSetting('openai_key', openaiKey, 'ai'),
-        saveSetting('gemini_key', geminiKey, 'ai'),
-        saveSetting('anthropic_key', anthropicKey, 'ai'),
-        saveSetting('ai_provider', aiProvider, 'ai'),
-        saveSetting('ai_model', aiModel, 'ai'),
+        saveSetting('openai_key', data.openai_key || '', 'ai'),
+        saveSetting('gemini_key', data.gemini_key || '', 'ai'),
+        saveSetting('anthropic_key', data.anthropic_key || '', 'ai'),
+        saveSetting('ai_provider', data.ai_provider, 'ai'),
+        saveSetting('ai_model', data.ai_model || '', 'ai'),
+        
+        saveSetting('system.file_watcher_enabled', String(data.file_watcher_enabled), 'system'),
+        saveSetting('system.git_sync_enabled', String(data.git_sync_enabled), 'system'),
       ]);
       alert('Settings saved successfully!');
     } catch (e) {
@@ -88,8 +131,8 @@ export function SettingsPage() {
       console.error(e);
     }
   };
-
-  const activeProviderConfig = modelsConfig[aiProvider];
+  
+  const activeProviderConfig = modelsConfig[watchedAiProvider];
 
   return (
     <div className="max-w-3xl mx-auto py-8">
@@ -98,15 +141,61 @@ export function SettingsPage() {
             <Lock size={24} className="text-accent" />
             System Settings
         </h1>
-        <p className="text-secondary mt-2">Manage integrations and AI configuration for your Memory Hub.</p>
+        <p className="text-secondary mt-2">Manage system services, integrations, watchers and AI configuration.</p>
       </header>
 
       {loading ? (
         <div className="text-center py-10 text-secondary">Loading settings...</div>
       ) : (
-        <form onSubmit={handleSave} className="space-y-10">
-            
-            {/* AI Section (High Priority) */}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
+
+            {/* Global Services Section */}
+          <section>
+            <h3 className="text-sm font-medium text-white mb-4 uppercase tracking-wider flex items-center gap-2">
+                <Zap size={16} /> Global Services
+            </h3>
+            <div className="bg-card rounded-lg p-6 border border-border grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {/* File Watcher Toggle */}
+                 <div className="flex items-center justify-between">
+                    <div>
+                        <h4 className="text-sm font-medium text-white">File Watcher</h4>
+                        <p className="text-[10px] text-secondary">Monitor memory.json changes via filesystem.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            {...register('file_watcher_enabled')}
+                        />
+                        <div className="w-11 h-6 bg-surface border border-white/10 rounded-full peer peer-focus:ring-2 peer-focus:ring-accent/50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+                    </label>
+                 </div>
+                 
+                 {/* Git Sync Toggle */}
+                 <div className="flex items-center justify-between">
+                    <div>
+                        <h4 className="text-sm font-medium text-white">Git Auto-Sync</h4>
+                        <p className="text-[10px] text-secondary">Automatically fetch & sync git commits.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            {...register('git_sync_enabled')}
+                        />
+                        <div className="w-11 h-6 bg-surface border border-white/10 rounded-full peer peer-focus:ring-2 peer-focus:ring-accent/50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+                    </label>
+                 </div>
+            </div>
+            {(!watchedFileWatcher || !watchedGitSync) && (
+                <div className="mt-2 text-xs text-orange-400 bg-orange-400/10 p-2 rounded flex items-center gap-2">
+                    <Activity size={12} />
+                    <span>Some background services are paused. Events may not be recorded automatically.</span>
+                </div>
+            )}
+          </section>
+
+            {/* AI Section */}
           <section>
             <h3 className="text-sm font-medium text-white mb-4 uppercase tracking-wider flex items-center gap-2">
                 <Cpu size={16} /> Artificial Intelligence
@@ -118,12 +207,8 @@ export function SettingsPage() {
                   <div>
                     <label className="block text-xs font-medium text-secondary mb-1.5">Active AI Provider</label>
                     <select 
+                        {...register('ai_provider')}
                         className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
-                        value={aiProvider}
-                        onChange={e => {
-                            setAiProvider(e.target.value);
-                            setAiModel(''); // Reset model when provider changes
-                        }}
                     >
                         {Object.keys(modelsConfig).map(key => (
                             <option key={key} value={key}>{modelsConfig[key].name}</option>
@@ -134,9 +219,8 @@ export function SettingsPage() {
                   <div>
                     <label className="block text-xs font-medium text-secondary mb-1.5">Model</label>
                      <select 
+                        {...register('ai_model')}
                         className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
-                        value={aiModel}
-                        onChange={e => setAiModel(e.target.value)}
                     >
                         <option value="" disabled>Select a model</option>
                         {activeProviderConfig?.models.map((m: any) => (
@@ -159,14 +243,13 @@ export function SettingsPage() {
                     <div>
                         <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">
                             <span>Google Gemini Key</span>
-                            {aiProvider === 'gemini' && <span className="text-[10px] text-accent bg-accent/10 px-1.5 rounded">Active</span>}
+                            {/* ... */}
                         </label>
                         <div className="relative">
                             <input 
                                 type={showKeys['gemini'] ? 'text' : 'password'}
                                 className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
-                                value={geminiKey}
-                                onChange={e => setGeminiKey(e.target.value)}
+                                {...register('gemini_key')}
                                 placeholder="AIza..."
                             />
                             <button
@@ -183,14 +266,13 @@ export function SettingsPage() {
                     <div>
                         <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">
                             <span>OpenAI Key</span>
-                            {aiProvider === 'openai' && <span className="text-[10px] text-accent bg-accent/10 px-1.5 rounded">Active</span>}
+                            {/* ... */}
                         </label>
                         <div className="relative">
                              <input 
                                 type={showKeys['openai'] ? 'text' : 'password'}
                                 className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
-                                value={openaiKey}
-                                onChange={e => setOpenaiKey(e.target.value)}
+                                {...register('openai_key')}
                                 placeholder="sk-..."
                             />
                             <button
@@ -207,14 +289,13 @@ export function SettingsPage() {
                     <div>
                         <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">
                             <span>Anthropic Key</span>
-                            {aiProvider === 'anthropic' && <span className="text-[10px] text-accent bg-accent/10 px-1.5 rounded">Active</span>}
+                            {/* ... */}
                         </label>
                          <div className="relative">
                             <input 
                                 type={showKeys['anthropic'] ? 'text' : 'password'}
                                 className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
-                                value={anthropicKey}
-                                onChange={e => setAnthropicKey(e.target.value)}
+                                {...register('anthropic_key')}
                                 placeholder="sk-ant-..."
                             />
                             <button
@@ -246,8 +327,7 @@ export function SettingsPage() {
                         <input 
                         type="password"
                         className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all"
-                        value={slackToken}
-                        onChange={e => setSlackToken(e.target.value)}
+                        {...register('slack_token')}
                         placeholder="xoxb-..."
                         />
                     </div>
@@ -261,8 +341,7 @@ export function SettingsPage() {
                         <input 
                         type="text"
                         className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all"
-                        value={jiraUrl}
-                        onChange={e => setJiraUrl(e.target.value)}
+                        {...register('jira_url')}
                         placeholder="https://your-domain.atlassian.net"
                         />
                     </div>
@@ -272,8 +351,7 @@ export function SettingsPage() {
                             <input 
                             type="email"
                             className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all"
-                            value={jiraEmail}
-                            onChange={e => setJiraEmail(e.target.value)}
+                            {...register('jira_email')}
                             placeholder="user@example.com"
                             />
                         </div>
@@ -282,8 +360,7 @@ export function SettingsPage() {
                             <input 
                             type="password"
                             className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all"
-                            value={jiraToken}
-                            onChange={e => setJiraToken(e.target.value)}
+                            {...register('jira_token')}
                             placeholder="Token..."
                             />
                         </div>

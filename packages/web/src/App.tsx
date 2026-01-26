@@ -7,6 +7,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { FocusPage } from './pages/FocusPage';
 import { BrainPage } from './pages/BrainPage';
+import { TriggersPage } from './pages/TriggersPage';
 
 import { SocketProvider } from './context/SocketContext';
 
@@ -23,6 +24,7 @@ function App() {
                     <Route path="/projects" element={<ProjectsPage />} />
                     <Route path="/calendar" element={<CalendarPage />} />
                     <Route path="/brain" element={<BrainPage />} />
+                    <Route path="/triggers" element={<TriggersPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
                   </Routes>
