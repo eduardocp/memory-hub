@@ -1,0 +1,87 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-background: #0e0e11;
+  /* Deep dark background */
+  --color-card: #1c1c1f;
+  /* Slightly lighter card background */
+  --color-surface: #28282c;
+  /* Hover states / Secondary surface */
+  --color-border: #333336;
+  /* Subtle borders */
+  --color-primary: #e3e3e3;
+  /* Main text */
+  --color-secondary: #9ca3af;
+  /* Secondary text */
+  --color-accent: #5865F2;
+  /* Brand accent (can be adjusted) */
+  --color-success: #2ECC71;
+  --color-error: #FF5F56;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Markdown Prose Styles */
+.prose-summary ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-summary ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-summary li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.prose-summary p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-summary strong {
+  font-weight: 600;
+  color: #fff;
+}
+
+.prose-summary h1,
+.prose-summary h2,
+.prose-summary h3 {
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Toast Animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out forwards;
+}

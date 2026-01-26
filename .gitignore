@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Production
+build/
+dist/
+lib/
+.next/
+out/
+.output/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+# !.vscode/settings.json # Uncomment if you want to share settings
+# !.vscode/tasks.json # Uncomment if you want to share tasks
+# !.vscode/launch.json # Uncomment if you want to share launch configs
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Testing
+coverage/
+
+# Temporary files
+tmp/
+temp/

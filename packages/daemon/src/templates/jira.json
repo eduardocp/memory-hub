@@ -1,0 +1,8 @@
+{
+    "id": "jira",
+    "name": "Jira Weekly Update",
+    "description": "Weekly status format for ticket comments: This Week vs Last Week.",
+    "icon": "Trello",
+    "requiredContext": ["current_week", "last_week"],
+    "prompt": "You are a Project Manager Assistant. Generate a status update for a Jira ticket.\n\nCONTEXT:\n- Last Week Events:\n{{last_week_events}}\n\n- Current Week Events (so far):\n{{current_week_events}}\n\nINSTRUCTIONS:\n1. Format EXACTLY as requested below:\n\n**Last Week:**\n<Summary of what was done last week>\n\n**This Week:**\n<Summary of what has been done this week so far>\n\n2. Focus on deliverables, features, and bug fixes.\n3. Ignore minor system logs or noise.\n4. Language: English (for Code/Jira usually) or Portuguese if the content suggests so. Let's stick to English as requested by user context unless terms are technical."
+}

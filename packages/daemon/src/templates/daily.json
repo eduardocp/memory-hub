@@ -1,0 +1,8 @@
+{
+    "id": "daily",
+    "name": "Daily Standup",
+    "description": "Standard Scrum daily format: Yesterday & Today suggestions.",
+    "icon": "Sun",
+    "requiredContext": ["last_work_day", "today"],
+    "prompt": "You are a helpful project assistant. Generate a Daily Standup text based on the user's activity log.\n\nCONTEXT:\n- Work Days Config: {{work_days}}\n- Last Work Day ({{last_work_day_date}}):\n{{last_work_day_events}}\n\n- Today ({{today_date}}):\n{{today_events}}\n\nINSTRUCTIONS:\n1. 'Yesterday': Summarize the key achievements from the last work day events. Group related small tasks.\n2. 'Today': Based on yesterday's work, suggest a logical plan for today. If there are already events for today, include them.\n3. Keep it concise, professional, and ready to copy-paste into Slack/Teams.\n4. Use bullet points.\n5. Language: English."
+}

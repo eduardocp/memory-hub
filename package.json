@@ -1,0 +1,13 @@
+{
+  "name": "memory-hub-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:daemon": "npm run dev --workspace=@memory-hub/daemon",
+    "dev:web": "npm run dev --workspace=@memory-hub/web",
+    "build:mcp": "npm run build --workspace=@memory-hub/mcp-server",
+    "cli": "npm run start --workspace=@memory-hub/cli --"
+  }
+}

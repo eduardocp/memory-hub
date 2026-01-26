@@ -1,0 +1,88 @@
+{
+  "events": [
+    {
+      "id": "bef69308-74cf-4542-a89a-c5fbbe20e899",
+      "timestamp": "2026-01-24T21:31:33.824Z",
+      "type": "system",
+      "text": "Teste de validação da variável de ambiente MEMORY_FOLDER_PATH. Se esta memória aparecer na interface, a configuração funcionou com sucesso.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "5cb038d6-77be-4716-87f7-17db598d6a70",
+      "timestamp": "2026-01-24T22:17:00.257Z",
+      "type": "new_feat",
+      "text": "Migrated frontend navigation to dedicated Pages (Timeline, Settings) using React Router and added a persistent sidebar layout.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "d1d9f790-d2c3-4336-923f-43b018f9862c",
+      "timestamp": "2026-01-24T22:17:00.620Z",
+      "type": "task_update",
+      "text": "Refactored daemon-frontend communication from HTTP Polling to WebSockets (Socket.io) for real-time updates.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "9156ea7a-f030-4deb-b877-8a945af204e6",
+      "timestamp": "2026-01-25T22:17:01.328Z",
+      "type": "new_feat",
+      "text": "Implemented AI-powered Daily Summaries using Google Gemini Pro.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "f25b1dc6-8f32-424c-afca-38940ed763e6",
+      "timestamp": "2026-01-25T22:17:01.829Z",
+      "type": "task_update",
+      "text": "Standardized memory file location to .agent/memory/memory.json across all packages (Daemon, MCP, Watcher).",
+      "project": "memory-hub"
+    },
+    {
+      "id": "7b3fffeb-ba53-405b-b022-fdb7747fbd71",
+      "timestamp": "2026-01-25T22:17:01.862Z",
+      "type": "new_feat",
+      "text": "Expanded event vocabulary with 'new_bug', 'new_feat', and 'spike_progress' types with distinct UI visualizations.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "028a4560-0475-4606-8113-d3e82cbc18d2",
+      "timestamp": "2026-01-25T22:50:40.702Z",
+      "type": "task_update",
+      "text": "Improved Data Type Robustness: Migrated database schema to use DATETIME types for timestamp fields (events, projects, schedules, triggers, settings), fixing previous TEXT usage. Implemented an auto-migration system that safely converts existing data on daemon startup.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "a8fbb86d-f77d-4df2-b8cb-1d0bd48e6b3d",
+      "timestamp": "2026-01-25T22:50:41.647Z",
+      "type": "task_update",
+      "text": "Refactored Data Architecture: Updated 'projects' table to use UUIDs as primary keys instead of paths, enabling safer project renaming and moving. Updated Backend (Daemon) endpoints and Frontend (ProjectsPage) to fully utilize these new stable IDs.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "751a0de7-049a-414f-9885-75aec54d1887",
+      "timestamp": "2026-01-25T22:50:42.291Z",
+      "type": "task_update",
+      "text": "Enhanced File Watching: Optimized the Watcher service to handle file updates more intelligently using UPSERT logic, ensuring database stays in sync even when memory.json content changes. Also undid the strict '.agent/memory' path enforcement, allowing users to define arbitrary project roots for memory files.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "81ff1352-8ae2-48b3-8081-1472a223b924",
+      "timestamp": "2026-01-25T22:50:42.334Z",
+      "type": "new_feat",
+      "text": "Feature: Added 'Project Management' page to the frontend, allowing users to Add, Edit (change path), and Remove projects from the monitoring list via a UI interface with real-time feedback.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "9f11adb3-4b5d-4616-9154-db05fd88b3e5",
+      "timestamp": "2026-01-25T23:00:20.760Z",
+      "type": "summary",
+      "text": "Yesterday's Activity Summary:\n\n*   **Accomplishments:**\n    *   Successfully validated the `MEMORY_FOLDER_PATH` environment variable, confirming successful configuration if the memory appears in the interface.\n    *   Migrated frontend navigation to dedicated Pages (Timeline, Settings) using React Router and implemented a persistent sidebar layout.\n    *   Refactored daemon-frontend communication from HTTP Polling to WebSockets (Socket.io) to enable real-time updates.\n\n*   **Ideas Generated:** None explicitly mentioned in the logs.\n\n*   **Important Notes:**\n    *   The successful validation of `MEMORY_FOLDER_PATH` indicates a crucial step in the project's setup is working.\n    *   The shift to React Router and WebSockets represents significant architectural improvements for the frontend and its communication with the backend, respectively.",
+      "project": "memory-hub"
+    },
+    {
+      "id": "3415a2d2-a84c-425e-8453-ac0eaf753585",
+      "timestamp": "2026-01-25T23:18:27.628Z",
+      "type": "task_update",
+      "text": "Architecture Decision: Migrated frontend-daemon communication from REST polling to WebSocket (Socket.IO) for real-time updates. REST API endpoints are maintained as fallback for external tools, debugging, and compatibility with MCP Server which operates independently via filesystem.",
+      "project": "memory-hub"
+    }
+  ]
+}

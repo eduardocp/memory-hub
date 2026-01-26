@@ -8,7 +8,7 @@ Memory Hub is an application for managing contextual events across projects. The
 Local event management per project via a minimal MCP server interface.
 
 **Responsibilities:**
-- Create and maintain `.cursor-memory/memory.json` inside each project
+- Create and maintain `<folder_decided_by_user>/memory.json` inside each project
 - Append new events
 - Return all events
 - Clear events
@@ -26,7 +26,7 @@ Local event management per project via a minimal MCP server interface.
 Central watchdog service that monitors project memory files, processes events, executes triggers, runs schedules, and serves data to the frontend.
 
 **Responsibilities:**
-- Watch `.cursor-memory/memory.json` files
+- Watch `<folder_decided_by_user>/memory.json` files
 - Detect new events and insert into global SQLite database
 - Execute triggers and scheduled tasks
 - Provide REST API for the frontend
@@ -58,7 +58,7 @@ A clean, Linear-inspired interface for displaying all events with clarity and fo
 
 ```
 /<project-root>/
-  .cursor-memory/
+  <folder_decided_by_user>/
     memory.json
 
 ~/memory-hub/
