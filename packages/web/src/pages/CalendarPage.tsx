@@ -4,14 +4,10 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMont
 import clsx from 'clsx';
 import { useToast, ToastContainer } from '../components/Toast';
 import { useSocket } from '../context/SocketContext';
+import type { HelperEvent } from '../domain/models';
 
-interface CalendarEvent {
-  id: string;
-  timestamp: string;
-  type: string;
-  text: string;
-  project: string;
-}
+// Alias for clarity in this context
+type CalendarEvent = HelperEvent;
 
 export function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());

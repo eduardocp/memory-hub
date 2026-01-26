@@ -6,8 +6,7 @@ import { useToast } from '../components/Toast';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-
-const API_URL = 'http://localhost:3000';
+import { API_URL } from '../config';
 
 interface Trigger {
   id: string;

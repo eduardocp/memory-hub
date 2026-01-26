@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Trash2, Folder, FolderPlus, X, Edit2, Play, Activity, PauseCircle, PlayCircle } from 'lucide-react';
+import { Trash2, Folder, FolderPlus, X, Edit2, Play, Activity } from 'lucide-react';
 import { useToast, ToastContainer } from '../components/Toast';
 import { useSocket } from '../context/SocketContext';
 import clsx from 'clsx';

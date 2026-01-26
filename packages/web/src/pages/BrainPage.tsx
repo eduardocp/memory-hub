@@ -4,17 +4,8 @@ import { useSocket } from '../context/SocketContext';
 import { Loader2, Share2, Maximize, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { useToast } from '../components/Toast';
-
-const API_URL = 'http://localhost:3000';
-
-// Types (reused mainly)
-interface HelperEvent {
-  id: string;
-  timestamp: string;
-  type: string;
-  text: string;
-  project: string;
-}
+import { API_URL } from '../config';
+import type { HelperEvent } from '../domain/models';
 
 export function BrainPage() {
     const { socket } = useSocket();

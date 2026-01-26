@@ -4,8 +4,7 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
 import { useToast, ToastContainer } from '../components/Toast';
-
-const API_URL = 'http://localhost:3000';
+import { API_URL } from '../config';
 
 interface Template {
     id: string;

@@ -6,71 +6,15 @@ import ReactMarkdown from 'react-markdown';
 import { useToast, ToastContainer } from '../components/Toast';
 import axios from 'axios';
 import { useSocket } from '../context/SocketContext';
-import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
-// Types
-interface HelperEvent {
-  id: string;
-  timestamp: string;
-  type: 'note' | 'idea' | 'task_update' | 'summary' | 'system' | 'new_bug' | 'bug_update' | 'spike_progress' | 'new_feat' | 'git_commit';
-  text: string;
-  project: string;
-  source?: string;
-}
-
-interface Project {
-  id: string;
-  path: string;
-  name: string;
-}
-
-const API_URL = 'http://localhost:3000';
-
-const EVENT_TYPES = [
-    { value: 'all', label: 'All Types' },
-    { value: 'note', label: 'Notes' },
-    { value: 'idea', label: 'Ideas' },
-    { value: 'task_update', label: 'Task Updates' },
-    { value: 'new_feat', label: 'New Features' },
-    { value: 'new_bug', label: 'Bugs' },
-    { value: 'spike_progress', label: 'Spike Progress' },
-    { value: 'summary', label: 'Summaries' },
-    { value: 'git_commit', label: 'Git Commits' },
-];
-
-const NOTE_TYPES = [
-    { value: 'note', label: 'Note' },
-    { value: 'idea', label: 'Idea' },
-    { value: 'task_update', label: 'Task Update' },
-    { value: 'new_bug', label: 'New Bug' },
-    { value: 'bug_update', label: 'Bug Update' },
-    { value: 'new_feat', label: 'New Feature' },
-    { value: 'spike_progress', label: 'Spike Progress' },
-    { value: 'summary', label: 'Summary' },
-];
-
-const DATE_FILTERS = [
-    { value: 'all', label: 'All Time' },
-    { value: 'today', label: 'Today' },
-    { value: 'yesterday', label: 'Yesterday' },
-    { value: 'week', label: 'Last 7 Days' },
-];
-
-// Schemas
-const projectSchema = z.object({
-    name: z.string().min(1, "Project name is required"),
-    path: z.string().min(1, "Absolute path is required"),
-});
-type ProjectFormData = z.infer<typeof projectSchema>;
-
-const noteSchema = z.object({
-    project: z.string().min(1, "Project is required"),
-    type: z.string(),
-    text: z.string().min(1, "Content is required"),
-});
-type NoteFormData = z.infer<typeof noteSchema>;
+// Shared imports
+import { API_URL } from '../config';
+import type { HelperEvent, Project } from '../domain/models';
+import { EVENT_TYPES, NOTE_TYPES, DATE_FILTERS } from '../shared/constants';
+import { projectSchema, noteSchema } from '../shared/schemas';
+import type { ProjectFormData, NoteFormData } from '../shared/schemas';
 
 export function TimelinePage() {
   const [events, setEvents] = useState<HelperEvent[]>([]);
