@@ -1,0 +1,40 @@
+{
+  "name": "@memory-hub/app",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Memory Hub - Your External Brain. All-in-one package with CLI, daemon, web UI and MCP server.",
+  "keywords": ["memory", "notes", "cli", "mcp", "ai", "productivity"],
+  "author": "Eduardo Pereira",
+  "license": "MIT",
+  "bin": {
+    "memory-hub": "./bin/memory-hub.js",
+    "mem": "./bin/mem.js"
+  },
+  "scripts": {
+    "build": "node scripts/build-all.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "cross-spawn": "^7.0.3"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^20.11.0"
+  },
+  "files": [
+    "bin/",
+    "daemon/",
+    "web/",
+    "mcp-server/",
+    "cli/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eduardocp/memory-hub.git"
+  }
+}

@@ -66,7 +66,9 @@ export function CalendarPage() {
       <header className="mb-8 flex items-center justify-between">
         <div>
             <h1 className="text-3xl font-semibold tracking-tight">Calendar</h1>
-            <p className="text-secondary mt-2">Visualize your brain's activity over time.</p>
+            <p className="text-secondary mt-2">
+              {loading ? 'Loading events...' : 'Visualize your brain\'s activity over time.'}
+            </p>
         </div>
         
         <div className="flex items-center gap-4 bg-card rounded-xl p-1 border border-border/50">

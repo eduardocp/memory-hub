@@ -8,6 +8,7 @@
     "dev:daemon": "npm run dev --workspace=@memory-hub/daemon",
     "dev:web": "npm run dev --workspace=@memory-hub/web",
     "build:mcp": "npm run build --workspace=@memory-hub/mcp-server",
+    "build:app": "npm run build --workspace=@memory-hub/app",
     "cli": "npm run start --workspace=@memory-hub/cli --"
   }
 }

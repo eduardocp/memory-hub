@@ -45,3 +45,7 @@ coverage/
 # Temporary files
 tmp/
 temp/
+packages/app/cli/
+packages/app/daemon/
+packages/app/web/
+packages/app/mcp-server/

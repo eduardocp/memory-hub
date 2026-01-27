@@ -740,6 +740,40 @@ io.on('connection', (socket) => {
     });
 });
 
+// Serve static frontend (when bundled with @memory-hub/app)
+const webDistPath = process.env.WEB_DIST_PATH;
+
+if (webDistPath && fs.existsSync(webDistPath)) {
+    console.log(`Serving frontend from: ${webDistPath}`);
+    app.use(express.static(webDistPath));
+
+    // SPA fallback - serve index.html for non-API routes
+    app.get('*', (req, res, next) => {
+        // Skip API routes
+        if (req.path.startsWith('/api') ||
+            req.path.startsWith('/status') ||
+            req.path.startsWith('/projects') ||
+            req.path.startsWith('/events') ||
+            req.path.startsWith('/settings') ||
+            req.path.startsWith('/diary') ||
+            req.path.startsWith('/triggers') ||
+            req.path.startsWith('/templates') ||
+            req.path.startsWith('/reports') ||
+            req.path.startsWith('/summary') ||
+            req.path.startsWith('/ai') ||
+            req.path.startsWith('/socket.io')) {
+            return next();
+        }
+
+        const indexPath = path.join(webDistPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+            res.sendFile(indexPath);
+        } else {
+            next();
+        }
+    });
+}
+
 httpServer.listen(PORT, () => {
     console.log(`Daemon running on http://localhost:${PORT}`);
 });
