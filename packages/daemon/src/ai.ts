@@ -17,7 +17,12 @@ export const AI_PROVIDERS = {
             { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Powerful)' },
             { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (General)' },
             { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)' },
-            { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Preview)' }
+            { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Preview)' },
+            { id: 'gemma-3-1b', name: 'Gemma 3 1B' },
+            { id: 'gemma-3-2b', name: 'Gemma 3 2B' },
+            { id: 'gemma-3-4b', name: 'Gemma 3 4B' },
+            { id: 'gemma-3-12b', name: 'Gemma 3 12B' },
+            { id: 'gemma-3-27b', name: 'Gemma 3 27B' }
         ]
     },
     openai: {
