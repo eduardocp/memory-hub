@@ -29,6 +29,33 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Custom Scrollbar - Slim Dark Style */
+  ::-webkit-scrollbar {
+    width: 20px;
+    height: 20px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-background);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+    border: 2px solid var(--color-background);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-surface);
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) var(--color-background);
+  }
 }
 
 /* Markdown Prose Styles */
@@ -84,4 +111,55 @@
 
 .animate-slide-in {
   animation: slide-in 0.3s ease-out forwards;
+}
+
+/* MDEditor Dark Mode Styles */
+[data-color-mode="dark"] .w-md-editor {
+  background-color: var(--color-background) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-primary) !important;
+}
+
+[data-color-mode="dark"] .w-md-editor-toolbar {
+  background-color: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+}
+
+[data-color-mode="dark"] .w-md-editor-toolbar button {
+  color: var(--color-secondary) !important;
+}
+
+[data-color-mode="dark"] .w-md-editor-toolbar button:hover {
+  background-color: var(--color-surface) !important;
+  color: var(--color-primary) !important;
+}
+
+[data-color-mode="dark"] .w-md-editor-content {
+  background-color: var(--color-background) !important;
+}
+
+[data-color-mode="dark"] .w-md-editor-preview {
+  background-color: var(--color-background) !important;
+}
+
+[data-color-mode="dark"] .wmde-markdown {
+  background-color: transparent !important;
+  color: var(--color-primary) !important;
+}
+
+[data-color-mode="dark"] .w-md-editor-area {
+  border-color: var(--color-border) !important;
+}
+
+[data-color-mode="dark"] .w-md-editor-input {
+  color: var(--color-primary) !important;
+}
+
+[data-color-mode="dark"] .wmde-markdown code {
+  background-color: var(--color-surface) !important;
+  color: var(--color-accent) !important;
+}
+
+[data-color-mode="dark"] .wmde-markdown pre {
+  background-color: var(--color-card) !important;
 }

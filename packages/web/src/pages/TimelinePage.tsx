@@ -12,9 +12,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 // Shared imports
 import { API_URL } from '../config';
 import type { HelperEvent, Project } from '../domain/models';
-import { EVENT_TYPES, NOTE_TYPES, DATE_FILTERS } from '../shared/constants';
-import { projectSchema, noteSchema } from '../shared/schemas';
-import type { ProjectFormData, NoteFormData } from '../shared/schemas';
+import { EVENT_TYPES, DATE_FILTERS } from '../shared/constants';
+import { projectSchema } from '../shared/schemas';
+import type { ProjectFormData } from '../shared/schemas';
 
 export function TimelinePage() {
   const [events, setEvents] = useState<HelperEvent[]>([]);
@@ -25,7 +25,6 @@ export function TimelinePage() {
   const { socket, isConnected } = useSocket();
 
   // Modal States
-  const [isNoteModalOpen, setNoteModalOpen] = useState(false);
   const [isProjectModalOpen, setProjectModalOpen] = useState(false);
 
   // Filters
@@ -44,23 +43,6 @@ export function TimelinePage() {
       // Cast to any to bypass version mismatch between Zod 4 and Resolver (expects Zod 3 internals)
       resolver: zodResolver(projectSchema as any)
   });
-
-  const { 
-      register: registerNote, 
-      handleSubmit: handleSubmitNote, 
-      reset: resetNote,
-      setValue: setNoteValue,
-      watch: watchNote,
-      formState: { errors: noteErrors } 
-  } = useForm<NoteFormData>({
-      resolver: zodResolver(noteSchema as any),
-      defaultValues: {
-          type: 'note',
-          text: ''
-      }
-  });
-
-  const watchedNoteProject = watchNote('project');
 
   // Fetch data via WebSocket
   const fetchEventsViaSocket = useCallback((term: string = '', type: string = 'all', range: string = 'all') => {
@@ -123,11 +105,7 @@ export function TimelinePage() {
     });
   }, [socket]);
 
-  useEffect(() => {
-      if (projects.length > 0 && !watchedNoteProject) {
-          setNoteValue('project', projects[0].name);
-      }
-  }, [projects, watchedNoteProject, setNoteValue]);
+
 
   useEffect(() => {
     if (!socket || !isConnected) return;
@@ -148,15 +126,11 @@ export function TimelinePage() {
     socket.on('projects:updated', onProjectUpdated);
     socket.on('projects:deleted', onProjectDeleted);
 
-    const handleOpenModal = () => setNoteModalOpen(true);
-    document.addEventListener('open-note-modal', handleOpenModal);
-
     return () => {
         socket.off('events:new', onEventNew);
         socket.off('projects:added', onProjectAdded);
         socket.off('projects:updated', onProjectUpdated);
         socket.off('projects:deleted', onProjectDeleted);
-        document.removeEventListener('open-note-modal', handleOpenModal);
     };
   }, [socket, isConnected, fetchProjectsViaSocket]);
 
@@ -175,7 +149,7 @@ export function TimelinePage() {
         addToast('No projects available to summarize.', 'error');
         return;
     }
-    const targetProject = (watchedNoteProject) || projects[0].name;
+    const targetProject = projects[0]?.name || '';
 
     setGeneratingSummary(true);
     try {
@@ -193,25 +167,7 @@ export function TimelinePage() {
     }
   };
 
-  const onAddNoteSubmit = (data: NoteFormData) => {
-    if (!socket) return;
 
-    socket.emit('events:add', {
-        text: data.text,
-        type: data.type,
-        project: data.project
-    }, (response: any) => {
-        if (response.success) {
-            setNoteModalOpen(false);
-            resetNote();
-            // Re-set default project
-            if (projects.length > 0) setNoteValue('project', projects[0].name);
-            addToast('Note added successfully!', 'success');
-        } else {
-            addToast(response.error || 'Failed to add note', 'error');
-        }
-    });
-  };
 
   const onAddProjectSubmit = (data: ProjectFormData) => {
     if (!socket) return;
@@ -457,67 +413,7 @@ export function TimelinePage() {
         </div>
       )}
 
-      {/* Add Note Modal */}
-      {isNoteModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md shadow-2xl">
-                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-lg font-semibold">Add New Note</h2>
-                    <button onClick={() => setNoteModalOpen(false)} className="text-secondary hover:text-white">
-                        <X size={20} />
-                    </button>
-                </div>
-                <form onSubmit={handleSubmitNote(onAddNoteSubmit)}>
-                    <div className="space-y-4">
-                         <div>
-                            <label className="block text-xs font-medium text-secondary mb-1">Project</label>
-                            <select 
-                                {...registerNote('project')}
-                                className={clsx(
-                                    "w-full bg-background border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent",
-                                    noteErrors.project ? "border-red-500/50 focus:border-red-500" : "border-border"
-                                )}
-                            >
-                                <option value="" disabled>Select a project</option>
-                                {projects.map(p => (
-                                    <option key={p.id} value={p.name}>{p.name}</option>
-                                ))}
-                            </select>
-                            {noteErrors.project && <span className="text-red-400 text-xs mt-1 block">{noteErrors.project.message}</span>}
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-secondary mb-1">Type</label>
-                            <select 
-                                {...registerNote('type')}
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent"
-                            >
-                                {NOTE_TYPES.map(type => (
-                                    <option key={type.value} value={type.value}>{type.label}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-secondary mb-1">Content</label>
-                            <textarea 
-                                {...registerNote('text')}
-                                className={clsx(
-                                    "w-full bg-background border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent min-h-[100px]",
-                                    noteErrors.text ? "border-red-500/50 focus:border-red-500" : "border-border"
-                                )}
-                                placeholder="What's on your mind?"
-                            />
-                            {noteErrors.text && <span className="text-red-400 text-xs mt-1 block">{noteErrors.text.message}</span>}
-                        </div>
-                        <div className="pt-2 flex justify-end">
-                            <button type="submit" className="bg-white text-black px-4 py-2 rounded text-sm font-medium hover:bg-gray-200">
-                                Add Note
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-      )}
+
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />

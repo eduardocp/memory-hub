@@ -437,6 +437,86 @@ app.post('/reports/generate', async (req, res) => {
 });
 
 // ==========================================
+// Diary API
+// ==========================================
+
+// Get diary entry for a specific date
+app.get('/diary/:date', (req, res) => {
+    try {
+        const { date } = req.params;
+        const entry = db.prepare('SELECT * FROM diary_entries WHERE date = ?').get(date);
+        res.json(entry || null);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all diary entries (for calendar view)
+app.get('/diary', (req, res) => {
+    try {
+        const { month, year } = req.query;
+        let query = 'SELECT id, date, substr(content, 1, 100) as preview, created_at, updated_at FROM diary_entries';
+        const params: any[] = [];
+
+        if (month && year) {
+            // Filter by month/year
+            query += ' WHERE strftime("%Y", date) = ? AND strftime("%m", date) = ?';
+            params.push(year, String(month).padStart(2, '0'));
+        }
+
+        query += ' ORDER BY date DESC';
+        const entries = db.prepare(query).all(...params);
+        res.json(entries);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create or update diary entry
+app.post('/diary', (req, res) => {
+    const { date, content } = req.body;
+    if (!date || content === undefined) {
+        return res.status(400).json({ error: 'date and content are required' });
+    }
+
+    try {
+        // Check if entry exists
+        const existing = db.prepare('SELECT id FROM diary_entries WHERE date = ?').get(date) as { id: string } | undefined;
+
+        if (existing) {
+            // Update
+            db.prepare('UPDATE diary_entries SET content = ?, updated_at = datetime("now") WHERE id = ?').run(content, existing.id);
+            const updated = db.prepare('SELECT * FROM diary_entries WHERE id = ?').get(existing.id);
+            res.json({ success: true, entry: updated, action: 'updated' });
+        } else {
+            // Create
+            const id = uuidv4();
+            db.prepare('INSERT INTO diary_entries (id, date, content) VALUES (?, ?, ?)').run(id, date, content);
+            const created = db.prepare('SELECT * FROM diary_entries WHERE id = ?').get(id);
+            res.json({ success: true, entry: created, action: 'created' });
+        }
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete diary entry
+app.delete('/diary/:date', (req, res) => {
+    try {
+        const { date } = req.params;
+        const result = db.prepare('DELETE FROM diary_entries WHERE date = ?').run(date);
+        if (result.changes > 0) {
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Entry not found' });
+        }
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
 // WebSocket Event Handlers (Real-time API)
 // ==========================================
 

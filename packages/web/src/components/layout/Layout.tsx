@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Settings, Box, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2, Zap } from 'lucide-react';
+import { Home, Settings, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2, Zap, BookOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { useSocket } from '../../context/SocketContext';
 import { AskBrainFn } from '../AskBrainFn';
+import { NoteModal } from '../NoteModal';
+import logoSvg from '/favicon.svg';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,12 +15,14 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isConnected } = useSocket();
+  const [isNoteModalOpen, setNoteModalOpen] = useState(false);
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
     { icon: Folder, label: 'Projects', path: '/projects' },
     { icon: Share2, label: 'Brain', path: '/brain' },
     { icon: Calendar, label: 'Calendar', path: '/calendar' },
+    { icon: BookOpen, label: 'Diary', path: '/diary' },
     { icon: Zap, label: 'Automations', path: '/triggers' },
     { icon: FileText, label: 'Reports', path: '/reports' },
     { icon: Settings, label: 'Settings', path: '/settings' },
@@ -31,9 +36,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="h-16 flex items-center px-6 gap-3">
             <div className="text-secondary hover:text-white transition-colors cursor-pointer" onClick={() => navigate('/')}>
                <div className="flex items-center gap-2">
-                   <div className="w-6 h-6 rounded bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-white shadow-lg shadow-accent/20">
-                       <Box size={14} strokeWidth={3} />
-                   </div>
+                   <img src={logoSvg} alt="Memory Hub" className="w-6 h-6" />
                    <span className="font-medium tracking-tight text-sm">Memory Hub</span>
                    <span className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded ml-2 font-medium">BETA</span>
                </div>
@@ -43,7 +46,7 @@ export function Layout({ children }: LayoutProps) {
         {/* Action Button */}
         <div className="px-4 mb-6 mt-2">
             <button 
-                onClick={() => document.dispatchEvent(new CustomEvent('open-note-modal'))}
+                onClick={() => setNoteModalOpen(true)}
                 className="w-full flex items-center justify-center gap-2 bg-secondary/10 hover:bg-secondary/20 text-primary py-3 rounded-full text-sm font-medium transition-all group border border-transparent hover:border-border"
             >
                 <Plus size={18} className="text-accent" />
@@ -126,7 +129,9 @@ export function Layout({ children }: LayoutProps) {
             {children}
          </div>
       </main>
+      
       <AskBrainFn />
+      <NoteModal isOpen={isNoteModalOpen} onClose={() => setNoteModalOpen(false)} />
     </div>
   );
 }
