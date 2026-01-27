@@ -6,6 +6,7 @@ import { Watcher } from './watcher.js';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { execSync } from 'child_process';
 
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -46,6 +47,75 @@ gitService.syncAllProjects();
 
 app.get('/status', (req, res) => {
     res.json({ status: 'running', version: '1.0.0' });
+});
+
+// Browse filesystem directories
+app.get('/browse', (req, res) => {
+    const { path: dirPath } = req.query;
+    const isWindows = process.platform === 'win32';
+
+    // Special case: list Windows drives
+    if (isWindows && (!dirPath || dirPath === 'drives')) {
+        try {
+            // Get list of drives using wmic
+            const output = execSync('wmic logicaldisk get name', { encoding: 'utf-8' });
+            const drives = output
+                .split('\n')
+                .map((line: string) => line.trim())
+                .filter((line: string) => /^[A-Z]:$/.test(line))
+                .map((drive: string) => ({
+                    name: drive,
+                    path: drive + '\\'
+                }));
+
+            return res.json({
+                current: 'Computer',
+                parent: null,
+                directories: drives,
+                isDrivesRoot: true
+            });
+        } catch (err: any) {
+            return res.status(500).json({ error: 'Failed to list drives: ' + err.message });
+        }
+    }
+
+    const targetPath = typeof dirPath === 'string' && dirPath.trim()
+        ? dirPath
+        : process.env.HOME || process.env.USERPROFILE || '/';
+
+    try {
+        if (!fs.existsSync(targetPath)) {
+            return res.status(404).json({ error: 'Directory not found' });
+        }
+
+        const stat = fs.statSync(targetPath);
+        if (!stat.isDirectory()) {
+            return res.status(400).json({ error: 'Path is not a directory' });
+        }
+
+        const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+        const directories = entries
+            .filter(e => e.isDirectory())
+            .map(e => ({
+                name: e.name,
+                path: path.join(targetPath, e.name)
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        // Get parent directory
+        const parent = path.dirname(targetPath);
+
+        // On Windows, if we're at a drive root (e.g., C:\), parent should go to drives list
+        const isAtDriveRoot = isWindows && /^[A-Z]:\\?$/i.test(targetPath);
+
+        res.json({
+            current: targetPath,
+            parent: isAtDriveRoot ? 'drives' : (parent !== targetPath ? parent : null),
+            directories
+        });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.get('/projects', (req, res) => {
@@ -460,7 +530,7 @@ app.get('/diary', (req, res) => {
 
         if (month && year) {
             // Filter by month/year
-            query += ' WHERE strftime("%Y", date) = ? AND strftime("%m", date) = ?';
+            query += " WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?";
             params.push(year, String(month).padStart(2, '0'));
         }
 

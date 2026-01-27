@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Trash2, Folder, FolderPlus, X, Edit2, Play, Activity } from 'lucide-react';
+import { Trash2, Folder, FolderPlus, X, Edit2, Play, Activity, FolderSearch } from 'lucide-react';
 import { useToast, ToastContainer } from '../components/Toast';
 import { useSocket } from '../context/SocketContext';
+import { DirectoryPicker } from '../components/DirectoryPicker';
 import clsx from 'clsx';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -27,6 +28,7 @@ export function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [isPickerOpen, setPickerOpen] = useState(false);
   
   const { toasts, addToast, removeToast } = useToast();
   const { socket, isConnected } = useSocket();
@@ -35,6 +37,8 @@ export function ProjectsPage() {
       register, 
       handleSubmit, 
       reset, 
+      setValue,
+      watch,
       formState: { errors } 
   } = useForm<ProjectFormData>({
       resolver: zodResolver(projectFormSchema as any),
@@ -44,6 +48,8 @@ export function ProjectsPage() {
           watch_enabled: true
       }
   });
+
+  const currentPath = watch('path');
 
   const fetchProjectsViaSocket = useCallback(() => {
     if (!socket) return;
@@ -264,17 +270,28 @@ export function ProjectsPage() {
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-secondary mb-2 uppercase tracking-wider">Absolute Path</label>
-                            <div className="relative">
-                                <Folder className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" size={16} />
-                                <input 
-                                    {...register('path')}
-                                    className={clsx(
-                                        "w-full bg-[#0e0e11] border rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-secondary/30",
-                                        errors.path ? "border-red-500/50" : "border-border"
-                                    )}
-                                    placeholder="e.g. C:/Users/Dev/Values/Project"
-                                    spellCheck={false}
-                                />
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Folder className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" size={16} />
+                                    <input 
+                                        {...register('path')}
+                                        className={clsx(
+                                            "w-full bg-[#0e0e11] border rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-secondary/30",
+                                            errors.path ? "border-red-500/50" : "border-border"
+                                        )}
+                                        placeholder="e.g. C:/Users/Dev/Project"
+                                        spellCheck={false}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setPickerOpen(true)}
+                                    className="flex items-center gap-2 px-4 py-3 bg-surface border border-border rounded-lg text-sm text-secondary hover:text-white hover:border-accent/50 transition-colors"
+                                    title="Browse folders"
+                                >
+                                    <FolderSearch size={16} />
+                                    Browse
+                                </button>
                             </div>
                             {errors.path && <span className="text-red-400 text-xs mt-1 block">{errors.path.message}</span>}
                             <p className="text-[11px] text-secondary/60 mt-2 flex items-center gap-1">
@@ -319,6 +336,14 @@ export function ProjectsPage() {
             </div>
         </div>
       )}
+
+      {/* Directory Picker Modal */}
+      <DirectoryPicker
+        isOpen={isPickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(selectedPath) => setValue('path', selectedPath)}
+        initialPath={currentPath || undefined}
+      />
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />

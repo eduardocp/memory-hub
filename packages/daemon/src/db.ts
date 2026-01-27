@@ -4,8 +4,9 @@ import fs from 'fs';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 
-const DB_DIR = path.join(os.homedir(), 'memory-hub');
-const DB_PATH = path.join(DB_DIR, 'global.db');
+// Centralized data directory - can be overridden via environment variable
+const DB_DIR = process.env.MEMORY_HUB_DATA_DIR || path.join(os.homedir(), '.memory-hub');
+const DB_PATH = path.join(DB_DIR, 'memory-hub.db');
 const MIGRATIONS_DIR = path.join(process.cwd(), 'src', 'migrations');
 
 // Ensure directory exists

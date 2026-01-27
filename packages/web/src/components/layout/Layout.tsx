@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Settings, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2, Zap, BookOpen } from 'lucide-react';
 import clsx from 'clsx';
+import axios from 'axios';
 import { useSocket } from '../../context/SocketContext';
 import { AskBrainFn } from '../AskBrainFn';
 import { NoteModal } from '../NoteModal';
 import logoSvg from '/favicon.svg';
+import { API_URL } from '../../config';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,6 +18,34 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { isConnected } = useSocket();
   const [isNoteModalOpen, setNoteModalOpen] = useState(false);
+  const [aiModelName, setAiModelName] = useState<string>('');
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const [settingsRes, modelsRes] = await Promise.all([
+          axios.get(`${API_URL}/settings`),
+          axios.get(`${API_URL}/ai/models`)
+        ]);
+        
+        const settings = settingsRes.data;
+        const modelsConfig = modelsRes.data;
+        const modelId = settings['ai_model'];
+        const provider = settings['ai_provider'];
+        
+        if (modelId && provider && modelsConfig[provider]) {
+          const model = modelsConfig[provider].models.find((m: any) => m.id === modelId);
+          setAiModelName(model?.name || modelId);
+        } else {
+          setAiModelName('Not configured');
+        }
+      } catch (e) {
+        console.error('Failed to load AI settings');
+        setAiModelName('Error');
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
@@ -101,8 +131,8 @@ export function Layout({ children }: LayoutProps) {
                     <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-white truncate">AI Assistant</p>
                         <div className="flex items-center gap-1.5">
-                             <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
-                             <p className="text-[10px] text-secondary truncate">Gemini 2.5 Flash Lite</p>
+                             <span className={clsx("w-1.5 h-1.5 rounded-full", aiModelName && aiModelName !== 'Not configured' ? "bg-success" : "bg-yellow-500")}></span>
+                             <p className="text-[10px] text-secondary truncate">{aiModelName || 'Loading...'}</p>
                         </div>
                     </div>
                 </div>

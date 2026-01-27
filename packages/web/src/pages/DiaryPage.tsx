@@ -183,7 +183,7 @@ export function DiaryPage() {
 
     const fetchEntries = async () => {
         try {
-            const month = currentDate.getMonth() + 1;
+            const month = String(currentDate.getMonth() + 1).padStart(2, '0');
             const year = currentDate.getFullYear();
             const res = await axios.get(`${API_URL}/diary`, { params: { month, year } });
             setEntries(res.data);
