@@ -37,6 +37,49 @@
 **Prioridade:** 🥈 Média  
 **Status:** [ ] Não iniciado
 
+#### 🧠 Conceito
+Transformar o Memory Hub em um "segundo cérebro" capaz de entender o **significado** das memórias, permitindo perguntas como *"O que ficou pendente da sprint passada?"* ou encontrar eventos relacionados semanticamente (ex: "login" encontra "autenticação").
+
+#### 🏗️ Arquitetura Técnica
+
+**1. Embeddings (Vector Generation)**
+- Cada novo evento é processado por um modelo de IA para gerar um vetor numérico.
+- **Modelo Oficial:** `gemini-embedding-1.0` (Google).
+- **Processo:** Texto do evento → API Gemini → Vetor Float[].
+
+**2. Armazenamento (Vector Store)**
+- Tabela dedicada no SQLite: `event_embeddings`
+- Colunas: `event_id`, `vector` (blob ou JSON serialized), `model_version`.
+- Para performance em escala, considerar extensão `sqlite-vss`.
+
+**3. Fluxo de Busca (RAG - Retrieval Augmented Generation)**
+1. Usuário faz pergunta em linguagem natural.
+2. Pergunta é convertida em vetor usando o mesmo modelo.
+3. Cálculo de similaridade (Cosine Similarity) encontra os N eventos mais próximos.
+4. LLM (Gemini Pro) recebe os eventos encontrados e gera a resposta final.
+
+#### 🛠️ Fluxo de Dados
+
+```mermaid
+graph LR
+    A[Novo Evento] --> B(Daemon IA Service)
+    B --> C{Gerar Embedding}
+    C --> D[Modelo: gemini-embedding-1.0]
+    D --> E[Vetor do Evento]
+    E --> F[(SQLite: event_embeddings)]
+    
+    G[Busca do Usuário] --> H{Gerar Embedding}
+    H --> I[Comparar Vetores]
+    I --> J[Eventos Semânticos]
+    J --> K[LLM: Gerar Resposta Natural]
+```
+
+#### 🚀 Próximos Passos
+1. Criar tabela `event_embeddings` no `db.ts`.
+2. Implementar `EmbeddingService` usando `gemini-embedding-1.0`.
+3. Adicionar hook na criação de eventos para gerar embedding em background.
+4. Criar endpoint `/api/search/semantic`.
+
 ---
 
 ## 🌐 3. Browser Extension
@@ -653,7 +696,9 @@ DAEMON
 
 | Data | Alteração |
 |------|-----------|
+| 2026-01-27 | Adicionada documentação técnica de Busca Semântica com IA (seção 2) usando modelo `gemini-embedding-1.0` |
 | 2026-01-27 | Adicionada documentação de integração com Jira via Polling (sem admin) na seção 5.2 |
+
 | 2026-01-27 | Adicionada documentação completa de CLI Enhancements com 8 categorias de comandos |
 
 | 2026-01-27 | Adicionada análise técnica detalhada sobre Git Hooks vs Polling na seção 5.1 |

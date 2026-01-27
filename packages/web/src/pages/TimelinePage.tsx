@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Lightbulb, RotateCcw, Star, Settings, X, Sparkles, Bug, FlaskConical, Rocket, Folder, Filter, ChevronDown, GitBranch } from 'lucide-react';
+import { Search, Lightbulb, RotateCcw, Star, Settings, X, Sparkles, Bug, FlaskConical, Rocket, Folder, Filter, ChevronDown, GitBranch, BrainCircuit } from 'lucide-react';
 import clsx from 'clsx';
 import { format, isToday, isYesterday, subDays, startOfDay, endOfDay } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
@@ -32,6 +32,7 @@ export function TimelinePage() {
   const [selectedType, setSelectedType] = useState('all');
   const [dateRange, setDateRange] = useState('all');
   const [showGit, setShowGit] = useState(false);
+  const [semanticSearch, setSemanticSearch] = useState(false);
 
   // Forms
   const { 
@@ -134,14 +135,71 @@ export function TimelinePage() {
     };
   }, [socket, isConnected, fetchProjectsViaSocket]);
 
-  // Debounce search and filters
+  // Perform Search Logic (Hybrid)
+  const performSearch = useCallback(async () => {
+    setLoading(true);
+
+    if (semanticSearch && searchTerm.length > 2) {
+         // Semantic Search / RAG via Ask Brain
+         try {
+             // We use /ai/chat for RAG now, which returns an answer + related memories
+             const res = await axios.post(`${API_URL}/ai/chat`, { 
+                 query: searchTerm,
+                 project: projects[0]?.name // Optional: context of current project if needed, or global
+             });
+             
+             if (res.data.success && res.data.answer) {
+                 const { user_response, related_memories } = res.data.answer;
+                 
+                 // Map related memories to HelperEvent shape if needed (usually matches)
+                 // And inject the AI Answer as a special event at the top
+                 const aiEvent: HelperEvent = {
+                     id: 'ai-answer-' + Date.now(),
+                     type: 'system', // Use 'system' or create a specific type
+                     text: user_response,
+                     timestamp: new Date().toISOString(),
+                     source: 'ai_response', // Special marker
+                     project: 'Memory Hub'
+                 };
+                 
+                 // Ensure related_memories has necessary fields
+                 const memories = (related_memories || []).map((m: any) => ({
+                    ...m,
+                    text: m.excerpt || m.text, // Handle mapping
+                    timestamp: m.date || m.timestamp || new Date().toISOString(),
+                    source: 'ai_citation'
+                 }));
+
+                 setEvents([aiEvent, ...memories]);
+             }
+         } catch (e) {
+             console.error("Semantic search failed:", e);
+             addToast("Semantic search failed", 'error');
+         } finally {
+             setLoading(false);
+         }
+    } else {
+        // Standard Socket Filter
+        fetchEventsViaSocket(searchTerm, selectedType, dateRange);
+    }
+  }, [semanticSearch, searchTerm, selectedType, dateRange, fetchEventsViaSocket, addToast, projects]);
+
+  // Debounce search (only for standard search)
   useEffect(() => {
+    if (semanticSearch) return; // Don't auto-search for semantic
+
     const timeout = setTimeout(() => {
-      fetchEventsViaSocket(searchTerm, selectedType, dateRange);
+        performSearch();
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [searchTerm, selectedType, dateRange, showGit, fetchEventsViaSocket]);
+  }, [searchTerm, selectedType, dateRange, showGit, semanticSearch, performSearch]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && semanticSearch) {
+        performSearch();
+    }
+  };
 
   // Handlers
   const handleGenerateSummary = async () => {
@@ -226,11 +284,24 @@ export function TimelinePage() {
            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" size={16} />
            <input 
              type="text" 
-             placeholder="Search your external brain..." 
-             className="w-full bg-card border border-border/50 rounded-full py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-accent/50 focus:bg-card/80 transition-all placeholder:text-secondary/50"
+             placeholder={semanticSearch ? "Ask a question (e.g. 'what did I do on auth?')..." : "Search by keyword..."}
+             className="w-full bg-card border border-border/50 rounded-full py-2.5 pl-10 pr-28 text-sm focus:outline-none focus:border-accent/50 focus:bg-card/80 transition-all placeholder:text-secondary/50"
              value={searchTerm}
              onChange={(e) => setSearchTerm(e.target.value)}
+             onKeyDown={handleKeyDown}
            />
+           <button 
+              onClick={() => setSemanticSearch(!semanticSearch)}
+              className={clsx(
+                  "absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+                  semanticSearch 
+                    ? "bg-purple-500 text-white border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]" 
+                    : "bg-surface text-secondary hover:text-primary border-border/50 hover:border-border"
+              )}
+           >
+               <BrainCircuit size={14} />
+               <span>AI Search</span>
+           </button>
          </div>
          
          <div className="flex items-center gap-3">
@@ -324,6 +395,11 @@ export function TimelinePage() {
                             </span>
                             
                             {/* Source Badges */}
+                            {event.source === 'ai_response' && (
+                                <span className="flex items-center gap-1 text-[9px] bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold uppercase tracking-wider" title="AI Answer">
+                                    <Sparkles size={8} /> AI ANSWER
+                                </span>
+                            )}
                             {event.source === 'ai' && (
                                 <span className="flex items-center gap-1 text-[9px] bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/20 font-medium" title="Generated by AI">
                                     <Sparkles size={8} /> AI
@@ -348,9 +424,19 @@ export function TimelinePage() {
                         ) : (
                           <p className="text-sm text-gray-300 leading-relaxed font-normal">{event.text}</p>
                         )}
-                      </div>
+                      
+                      {/* Similarity Score Badge */}
+                      {(event as any).similarity !== undefined && (
+                          <div className="mt-2 flex">
+                            <span className="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded-full" title="Similarity Score">
+                                {Math.round((event as any).similarity * 100)}% Match
+                            </span>
+                          </div>
+                      )}
                     </div>
-                    <span className="text-xs text-secondary/40 font-mono hidden md:block">
+                  </div>
+                    
+                    <span className="text-xs text-secondary/40 font-mono hidden md:block whitespace-nowrap">
                       {format(new Date(event.timestamp), 'HH:mm')}
                     </span>
                   </div>

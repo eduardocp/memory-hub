@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Save, Lock, Cpu, Key, Activity, Eye, EyeOff, Zap } from 'lucide-react';
+import { Save, Lock, Cpu, Key, Activity, Eye, EyeOff, Zap, Check, AlertCircle } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,9 +14,17 @@ const settingsSchema = z.object({
   // AI
   ai_provider: z.string(),
   ai_model: z.string().optional(),
-  openai_key: z.string().optional(),
+  
+  // Embedding specific
+  embedding_provider: z.string().optional(),
+  embedding_model: z.string().optional(),
+
+  ai_custom_base_url: z.string().optional(),
   gemini_key: z.string().optional(),
+  openai_key: z.string().optional(),
   anthropic_key: z.string().optional(),
+  vertex_project_id: z.string().optional(),
+  vertex_location: z.string().optional(),
 
   // Integrations
   slack_token: z.string().optional(),
@@ -33,6 +41,7 @@ export function SettingsPage() {
   
   // Visibility States
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
   const {
       register,
@@ -46,9 +55,16 @@ export function SettingsPage() {
           git_sync_enabled: true,
           ai_provider: 'gemini',
           ai_model: '',
+          // Default to gemini to avoid null issues
+          embedding_provider: 'gemini',
+          embedding_model: '',
+          
+          ai_custom_base_url: '',
           openai_key: '',
           gemini_key: '',
           anthropic_key: '',
+          vertex_project_id: '',
+          vertex_location: 'us-central1',
           slack_token: '',
           jira_url: '',
           jira_email: '',
@@ -57,6 +73,7 @@ export function SettingsPage() {
   });
 
   const watchedAiProvider = watch('ai_provider');
+  const watchedEmbeddingProvider = watch('embedding_provider');
   const watchedFileWatcher = watch('file_watcher_enabled');
   const watchedGitSync = watch('git_sync_enabled');
 
@@ -82,11 +99,19 @@ export function SettingsPage() {
           file_watcher_enabled: settings['system.file_watcher_enabled'] !== 'false',
           git_sync_enabled: settings['system.git_sync_enabled'] !== 'false',
           
+          
           ai_provider: settings['ai_provider'] || 'gemini',
           ai_model: settings['ai_model'] || '',
+
+          embedding_provider: settings['embedding_provider'] || 'gemini',
+          embedding_model: settings['embedding_model'] || '',
+
+          ai_custom_base_url: settings['ai_custom_base_url'] || '',
           openai_key: settings['openai_key'] || '',
           gemini_key: settings['gemini_key'] || '',
           anthropic_key: settings['anthropic_key'] || '', 
+          vertex_project_id: settings['vertex_project_id'] || '',
+          vertex_location: settings['vertex_location'] || 'us-central1',
           
           slack_token: settings['slack_token'] || '',
           jira_url: settings['jira_url'] || '',
@@ -108,6 +133,7 @@ export function SettingsPage() {
   };
 
   const onSubmit = async (data: SettingsFormData) => {
+    setSubmitStatus('saving');
     try {
       await Promise.all([
         saveSetting('slack_token', data.slack_token || '', 'integrations'),
@@ -118,20 +144,100 @@ export function SettingsPage() {
         saveSetting('openai_key', data.openai_key || '', 'ai'),
         saveSetting('gemini_key', data.gemini_key || '', 'ai'),
         saveSetting('anthropic_key', data.anthropic_key || '', 'ai'),
+        saveSetting('vertex_project_id', data.vertex_project_id || '', 'ai'),
+        saveSetting('vertex_location', data.vertex_location || '', 'ai'),
+        
         saveSetting('ai_provider', data.ai_provider, 'ai'),
         saveSetting('ai_model', data.ai_model || '', 'ai'),
+        saveSetting('ai_custom_base_url', data.ai_custom_base_url || '', 'ai'),
+        
+        saveSetting('embedding_provider', data.embedding_provider || 'gemini', 'ai'),
+        saveSetting('embedding_model', data.embedding_model || '', 'ai'),
         
         saveSetting('system.file_watcher_enabled', String(data.file_watcher_enabled), 'system'),
         saveSetting('system.git_sync_enabled', String(data.git_sync_enabled), 'system'),
       ]);
-      alert('Settings saved successfully!');
+      setSubmitStatus('success');
+      setTimeout(() => setSubmitStatus('idle'), 3000);
     } catch (e) {
-      alert('Failed to save settings');
       console.error(e);
+      setSubmitStatus('error');
+      setTimeout(() => setSubmitStatus('idle'), 5000);
     }
   };
   
-  const activeProviderConfig = modelsConfig[watchedAiProvider];
+  const activeChatProviderConfig = modelsConfig[watchedAiProvider];
+  const activeEmbeddingProviderConfig = modelsConfig[watchedEmbeddingProvider || 'gemini'];
+
+  // Helper to render API Key input for a provider
+  const renderProviderCredentials = (provider: string) => {
+      if (provider === 'gemini') {
+          return (
+            <div>
+                <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">Google Gemini API Key</label>
+                <div className="relative">
+                    <input 
+                        type={showKeys['gemini'] ? 'text' : 'password'}
+                        className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
+                        {...register('gemini_key')}
+                        placeholder="AIza..."
+                    />
+                    <button type="button" onClick={() => toggleKey('gemini')} className="absolute right-3 top-2.5 text-secondary hover:text-white"><Eye size={14} /></button>
+                </div>
+            </div>
+          );
+      }
+      if (provider === 'openai') {
+          return (
+            <div>
+                <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">OpenAI API Key</label>
+                <div className="relative">
+                    <input 
+                        type={showKeys['openai'] ? 'text' : 'password'}
+                        className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
+                        {...register('openai_key')}
+                        placeholder="sk-..."
+                    />
+                    <button type="button" onClick={() => toggleKey('openai')} className="absolute right-3 top-2.5 text-secondary hover:text-white"><Eye size={14} /></button>
+                </div>
+            </div>
+          );
+      }
+      if (provider === 'anthropic') {
+          return (
+            <div>
+                <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">Anthropic API Key</label>
+                <div className="relative">
+                    <input 
+                        type={showKeys['anthropic'] ? 'text' : 'password'}
+                        className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
+                        {...register('anthropic_key')}
+                        placeholder="sk-ant-..."
+                    />
+                    <button type="button" onClick={() => toggleKey('anthropic')} className="absolute right-3 top-2.5 text-secondary hover:text-white"><Eye size={14} /></button>
+                </div>
+            </div>
+          );
+      }
+      if (provider === 'vertex') {
+           return (
+                <div className="bg-white/5 rounded-lg p-4 border border-blue-500/20 mt-2">
+                    <h5 className="text-xs font-semibold text-blue-400 mb-3 uppercase tracking-wider">Vertex AI Configuration</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-medium text-secondary mb-1.5">Project ID</label>
+                            <input type="text" className="w-full bg-background border border-border rounded px-3 py-2 text-sm font-mono" {...register('vertex_project_id')} placeholder="my-project" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-secondary mb-1.5">Region</label>
+                            <input type="text" className="w-full bg-background border border-border rounded px-3 py-2 text-sm font-mono" {...register('vertex_location')} placeholder="us-central1" />
+                        </div>
+                    </div>
+                </div>
+           );
+      }
+      return null;
+  };
 
   return (
     <div className="max-w-3xl mx-auto py-8">
@@ -199,115 +305,116 @@ export function SettingsPage() {
             <h3 className="text-sm font-medium text-white mb-4 uppercase tracking-wider flex items-center gap-2">
                 <Cpu size={16} /> Artificial Intelligence
             </h3>
-            <div className="bg-card rounded-lg p-6 border border-border space-y-6">
-              
-              {/* Provider Selection */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-xs font-medium text-secondary mb-1.5">Active AI Provider</label>
-                    <select 
-                        {...register('ai_provider')}
-                        className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
-                    >
-                        {Object.keys(modelsConfig).map(key => (
-                            <option key={key} value={key}>{modelsConfig[key].name}</option>
-                        ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-secondary mb-1.5">Model</label>
-                     <select 
-                        {...register('ai_model')}
-                        className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
-                    >
-                        <option value="" disabled>Select a model</option>
-                        {activeProviderConfig?.models.map((m: any) => (
-                            <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
-                    </select>
-                    <p className="text-[10px] text-secondary mt-1">
-                        Select which model version to use for automatic tasks.
-                    </p>
-                  </div>
-              </div>
-
-              <div className="border-t border-white/5 pt-4">
-                  <h4 className="text-xs font-semibold text-white mb-3 flex items-center gap-2">
-                      <Key size={14} className="text-accent" /> API Keys
-                  </h4>
-                  
-                  <div className="space-y-4">
-                    {/* Gemini */}
-                    <div>
-                        <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">
-                            <span>Google Gemini Key</span>
-                            {/* ... */}
-                        </label>
-                        <div className="relative">
-                            <input 
-                                type={showKeys['gemini'] ? 'text' : 'password'}
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
-                                {...register('gemini_key')}
-                                placeholder="AIza..."
-                            />
-                            <button
-                                type="button"
-                                onClick={() => toggleKey('gemini')}
-                                className="absolute right-3 top-2.5 text-secondary hover:text-white focus:outline-none"
-                            >
-                                {showKeys['gemini'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </button>
-                        </div>
+            
+            <div className="space-y-6">
+                
+                {/* 1. Main Chat Logic */}
+                <div className="bg-card rounded-lg p-6 border border-border">
+                    <div className="mb-4">
+                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                            <span>🧠 Main Intelligence (Brain)</span>
+                        </h4>
+                        <p className="text-xs text-secondary mt-1">Used for answering questions, summarizing memories, and reasoning.</p>
                     </div>
 
-                    {/* OpenAI */}
-                    <div>
-                        <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">
-                            <span>OpenAI Key</span>
-                            {/* ... */}
-                        </label>
-                        <div className="relative">
-                             <input 
-                                type={showKeys['openai'] ? 'text' : 'password'}
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
-                                {...register('openai_key')}
-                                placeholder="sk-..."
-                            />
-                            <button
-                                type="button"
-                                onClick={() => toggleKey('openai')}
-                                className="absolute right-3 top-2.5 text-secondary hover:text-white focus:outline-none"
-                            >
-                                {showKeys['openai'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </button>
-                        </div>
+                    <div className="grid grid-cols-1 gap-5">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-secondary mb-1.5">Provider</label>
+                                <select 
+                                    {...register('ai_provider')}
+                                    className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
+                                >
+                                    {Object.keys(modelsConfig).map(key => (
+                                        <option key={key} value={key}>{modelsConfig[key].name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-secondary mb-1.5">Model</label>
+                                <select 
+                                    {...register('ai_model')}
+                                    className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
+                                >
+                                    <option value="" disabled>Select a chat model</option>
+                                    {activeChatProviderConfig?.models.filter((m:any) => m.type !== 'embedding').map((m: any) => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                       </div>
+                       
+                       {/* Dynamic Credentials for Chat */}
+                       <div className="pt-2 border-t border-white/5">
+                            {renderProviderCredentials(watchedAiProvider || 'gemini')}
+                       </div>
+                    </div>
+                </div>
+
+                {/* 2. Embeddings Logic */}
+                <div className="bg-card rounded-lg p-6 border border-border">
+                    <div className="mb-4">
+                        <h4 className="text-base font-medium text-white flex items-center gap-2">
+                            <span>🔍 Semantic Search Engine</span>
+                        </h4>
+                        <p className="text-xs text-secondary mt-1">Used to index events and find relevant memories. (Must support Embeddings)</p>
                     </div>
 
-                    {/* Anthropic */}
-                    <div>
-                        <label className="flex items-center justify-between text-xs font-medium text-secondary mb-1.5">
-                            <span>Anthropic Key</span>
-                            {/* ... */}
-                        </label>
-                         <div className="relative">
-                            <input 
-                                type={showKeys['anthropic'] ? 'text' : 'password'}
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all pr-10"
-                                {...register('anthropic_key')}
-                                placeholder="sk-ant-..."
-                            />
-                            <button
-                                type="button"
-                                onClick={() => toggleKey('anthropic')}
-                                className="absolute right-3 top-2.5 text-secondary hover:text-white focus:outline-none"
-                            >
-                                {showKeys['anthropic'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </button>
-                        </div>
+                    <div className="grid grid-cols-1 gap-5">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-secondary mb-1.5">Provider</label>
+                                <select 
+                                    {...register('embedding_provider')}
+                                    className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
+                                >
+                                    {Object.keys(modelsConfig).filter(k => k !== 'anthropic').map(key => (
+                                        <option key={key} value={key}>{modelsConfig[key].name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-secondary mb-1.5">Embedding Model</label>
+                                <select 
+                                    {...register('embedding_model')}
+                                    className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
+                                >
+                                    <option value="" disabled>Select model</option>
+                                    {activeEmbeddingProviderConfig?.models.filter((m:any) => m.type === 'embedding').map((m: any) => (
+                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                       </div>
+
+                       {/* Dynamic Credentials for Embeddings (if different from Chat) */}
+                       {watchedEmbeddingProvider !== watchedAiProvider && (
+                           <div className="pt-2 border-t border-white/5">
+                                <p className="text-[10px] text-orange-400 mb-2">Different provider selected. Ensure credentials are set.</p>
+                                {renderProviderCredentials(watchedEmbeddingProvider || 'gemini')}
+                           </div>
+                       )}
                     </div>
+                </div>
+
+                {/* Advanced / Base URL */}
+                <div className="px-2">
+                  <div className="flex items-center gap-2 mb-2 cursor-pointer opacity-70 hover:opacity-100 transition-opacity" onClick={() => toggleKey('advanced')}>
+                      <span className="text-xs font-medium text-secondary">Advanced Configuration</span>
                   </div>
-              </div>
+                  {showKeys['advanced'] && (
+                    <div className="bg-card/50 p-4 rounded border border-white/5">
+                         <label className="block text-xs font-medium text-secondary mb-1.5">Custom Base URL (Optional)</label>
+                         <input 
+                            type="text"
+                            className="w-full bg-background border border-border rounded px-3 py-2 text-sm font-mono placeholder:text-secondary/30"
+                            {...register('ai_custom_base_url')}
+                            placeholder="https://api.openai.com/v1"
+                        />
+                    </div>
+                  )}
+                </div>
+
             </div>
           </section>
 
@@ -368,13 +475,36 @@ export function SettingsPage() {
             </div>
           </section>
 
-          <div className="flex justify-end pt-4 sticky bottom-4">
-              <button 
+          <div className="flex justify-end pt-4 sticky bottom-4 items-center gap-4">
+               {submitStatus === 'success' && (
+                  <div className="flex items-center gap-2 text-green-400 bg-green-400/10 px-4 py-2 rounded-full border border-green-400/20 text-sm font-medium animate-fade-in">
+                      <Check size={16} /> Saved Successfully
+                  </div>
+               )}
+               {submitStatus === 'error' && (
+                  <div className="flex items-center gap-2 text-red-400 bg-red-400/10 px-4 py-2 rounded-full border border-red-400/20 text-sm font-medium animate-fade-in">
+                      <AlertCircle size={16} /> Error Saving
+                  </div>
+               )}
+
+               <button 
                 type="submit" 
-                className="flex items-center gap-2 bg-accent text-white px-8 py-3 rounded-full text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-accent/20 backdrop-blur-md"
-              >
-                <Save size={18} />
-                Save System Configuration
+                disabled={submitStatus === 'saving'}
+                className={`flex items-center gap-2 px-8 py-3 rounded-full text-sm font-bold transition-all shadow-lg backdrop-blur-md 
+                    ${submitStatus === 'saving' ? 'bg-secondary/20 text-secondary cursor-wait' : 'bg-accent text-white hover:brightness-110 shadow-accent/20'}
+                `}
+               >
+                 {submitStatus === 'saving' ? (
+                     <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Saving...
+                     </>
+                 ) : (
+                     <>
+                        <Save size={18} />
+                        Save System Configuration
+                     </>
+                 )}
               </button>
           </div>
         </form>

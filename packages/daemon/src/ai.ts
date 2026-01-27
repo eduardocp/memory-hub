@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { VertexAI } from '@google-cloud/vertexai';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import db from './db.js';
@@ -10,42 +11,44 @@ import fs from 'fs';
 
 export const AI_PROVIDERS = {
     gemini: {
-        name: 'Google Gemini',
+        name: 'Google Gemini (AI Studio)',
         models: [
-            { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite (Fastest)' },
-            { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Balanced)' },
-            { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (Powerful)' },
-            { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (General)' },
-            { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)' },
-            { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro (Preview)' },
-            { id: 'gemma-3-1b', name: 'Gemma 3 1B' },
-            { id: 'gemma-3-2b', name: 'Gemma 3 2B' },
-            { id: 'gemma-3-4b', name: 'Gemma 3 4B' },
-            { id: 'gemma-3-12b', name: 'Gemma 3 12B' },
-            { id: 'gemma-3-27b', name: 'Gemma 3 27B' }
+            { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', type: 'chat' },
+            { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', type: 'chat' },
+            { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', type: 'chat' },
+            { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', type: 'chat' },
+            { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', type: 'chat' },
+            { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', type: 'chat' },
+            { id: 'text-embedding-004', name: 'Text Embedding 004', type: 'embedding' }
+        ]
+    },
+    vertex: {
+        name: 'Google Vertex AI (Enterprise)',
+        models: [
+            { id: 'gemini-2.5-flash-001', name: 'Gemini 2.5 Flash', type: 'chat' },
+            { id: 'gemini-2.5-pro-001', name: 'Gemini 2.5 Pro', type: 'chat' },
+            { id: 'gemini-1.5-flash-001', name: 'Gemini 1.5 Flash', type: 'chat' },
+            { id: 'gemini-1.5-pro-001', name: 'Gemini 1.5 Pro', type: 'chat' },
+            { id: 'text-embedding-004', name: 'Text Embedding 004', type: 'embedding' }
         ]
     },
     openai: {
         name: 'OpenAI',
         models: [
-            { id: 'gpt-5.2', name: 'GPT-5.2 (Most Advanced)' },
-            { id: 'gpt-5-mini', name: 'GPT-5 Mini (Efficient Reasoning)' },
-            { id: 'gpt-4o', name: 'GPT-4o (Multimodal Standard)' },
-            { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Cost Effective)' },
-            { id: 'gpt-4.1', name: 'GPT-4.1 (Versatile)' },
-            { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
-            { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo (Legacy)' }
+            { id: 'gpt-4o', name: 'GPT-4o', type: 'chat' },
+            { id: 'gpt-4o-mini', name: 'GPT-4o Mini', type: 'chat' },
+            { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', type: 'chat' },
+            { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', type: 'chat' },
+            { id: 'text-embedding-3-small', name: 'Text Embedding 3 Small', type: 'embedding' },
+            { id: 'text-embedding-3-large', name: 'Text Embedding 3 Large', type: 'embedding' }
         ]
     },
     anthropic: {
         name: 'Anthropic',
         models: [
-            { id: 'claude-opus-4-5-20251101', name: 'Claude 4.5 Opus (Most Intelligent)' },
-            { id: 'claude-sonnet-4-5-20250929', name: 'Claude 4.5 Sonnet (Balanced Best)' },
-            { id: 'claude-haiku-4-5-20251001', name: 'Claude 4.5 Haiku (Fastest)' },
-            { id: 'claude-sonnet-4-20250522', name: 'Claude 4 Sonnet' },
-            { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet (Legacy Stable)' },
-            { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' }
+            { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet', type: 'chat' },
+            { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku', type: 'chat' },
+            { id: 'claude-3-opus-latest', name: 'Claude 3 Opus', type: 'chat' }
         ]
     }
 };
@@ -59,45 +62,64 @@ function getSetting(key: string): string | undefined {
 
 // --- Core Generation Logic ---
 
-async function getClientAndModel() {
-    const provider = getSetting('ai_provider') as AIProvider || 'gemini';
-    const modelId = getSetting('ai_model');
+// Helper to get client for a specific provider name
+function createClient(provider: AIProvider) {
+    const customBaseUrl = getSetting('ai_custom_base_url');
 
     if (provider === 'openai') {
         const apiKey = getSetting('openai_key');
         if (!apiKey) throw new Error('OpenAI API Key not configured');
-
-        return {
-            provider,
-            modelId: modelId || 'gpt-4o-mini',
-            client: new OpenAI({ apiKey })
-        };
+        return new OpenAI({ apiKey, baseURL: customBaseUrl || undefined });
     }
     else if (provider === 'anthropic') {
         const apiKey = getSetting('anthropic_key');
         if (!apiKey) throw new Error('Anthropic API Key not configured');
-
-        return {
-            provider,
-            modelId: modelId || 'claude-haiku-4-5-20251001',
-            client: new Anthropic({ apiKey })
-        };
+        return new Anthropic({ apiKey, baseURL: customBaseUrl || undefined });
+    }
+    else if (provider === 'vertex') {
+        const projectId = getSetting('vertex_project_id');
+        const location = getSetting('vertex_location') || 'us-central1';
+        if (!projectId) throw new Error('Vertex AI Project ID not configured');
+        return new VertexAI({ project: projectId, location });
     }
     else {
-        // Default to Gemini
+        // Gemini
         const apiKey = getSetting('gemini_key');
         if (!apiKey) throw new Error('Gemini API Key not configured');
-
-        return {
-            provider: 'gemini',
-            modelId: modelId || 'gemini-2.5-flash-lite', // Fallback to stable efficient one
-            client: new GoogleGenerativeAI(apiKey)
-        };
+        return new GoogleGenerativeAI(apiKey);
     }
 }
 
+async function getChatClient() {
+    const provider = getSetting('ai_provider') as AIProvider || 'gemini';
+    const modelId = getSetting('ai_model');
+    const client = createClient(provider);
+
+    // Safety check: ensure selected model belongs to provider? 
+    // For now, trust the settings or default fallbacks.
+
+    return { provider, modelId, client };
+}
+
+async function getEmbeddingClient() {
+    const provider = (getSetting('embedding_provider') as AIProvider) || 'gemini';
+    const modelId = getSetting('embedding_model') || 'text-embedding-004';
+
+    // Fallback: If provider is anthropic (no embeddings), switch to gemini
+    if (provider === 'anthropic') {
+        return {
+            provider: 'gemini' as AIProvider,
+            modelId: 'text-embedding-004',
+            client: createClient('gemini')
+        };
+    }
+
+    const client = createClient(provider);
+    return { provider, modelId, client };
+}
+
 export async function generateText(prompt: string, systemInstruction?: string): Promise<string> {
-    const { provider, modelId, client } = await getClientAndModel();
+    const { provider, modelId, client } = await getChatClient();
 
     try {
         if (provider === 'openai') {
@@ -106,7 +128,7 @@ export async function generateText(prompt: string, systemInstruction?: string): 
             if (systemInstruction) messages.unshift({ role: 'system', content: systemInstruction });
 
             const completion = await openai.chat.completions.create({
-                model: modelId,
+                model: modelId || 'gpt-4o-mini',
                 messages,
             });
             return completion.choices[0]?.message?.content || '';
@@ -114,7 +136,7 @@ export async function generateText(prompt: string, systemInstruction?: string): 
         else if (provider === 'anthropic') {
             const anthropic = client as Anthropic;
             const response = await anthropic.messages.create({
-                model: modelId,
+                model: modelId || 'claude-3-5-sonnet-latest',
                 max_tokens: 4000,
                 system: systemInstruction,
                 messages: [{ role: 'user', content: prompt }]
@@ -124,11 +146,21 @@ export async function generateText(prompt: string, systemInstruction?: string): 
             if (content.type === 'text') return content.text;
             return '';
         }
+        else if (provider === 'vertex') {
+            const vertexAI = client as VertexAI;
+            const model = vertexAI.getGenerativeModel({
+                model: modelId || 'gemini-1.5-flash-001',
+                systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction } as any], role: 'system' } : undefined
+            });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            return response.candidates?.[0].content.parts[0].text || '';
+        }
         else {
-            // Gemini
+            // Gemini AI Studio
             const genAI = client as GoogleGenerativeAI;
             const model = genAI.getGenerativeModel({
-                model: modelId,
+                model: modelId || 'gemini-1.5-flash',
                 systemInstruction: systemInstruction
             });
             const result = await model.generateContent(prompt);
@@ -140,48 +172,55 @@ export async function generateText(prompt: string, systemInstruction?: string): 
     }
 }
 
-export async function generateJSON(prompt: string): Promise<any> {
-    const { provider, modelId, client } = await getClientAndModel();
-    const systemInstruction = "You are a JSON-only API. Output ONLY valid JSON, no markdown, no explanations.";
+// --- JSON Construction ---
 
-    // Append JSON instruction to prompt for models that don't support system instructions strongly or response_format
-    const jsonPrompt = `${prompt}\n\nReturn ONLY raw JSON.`;
+export async function generateJSON(prompt: string): Promise<any> {
+    const { provider, modelId, client } = await getChatClient();
 
     try {
         if (provider === 'openai') {
             const openai = client as OpenAI;
             const completion = await openai.chat.completions.create({
-                model: modelId,
+                model: modelId || 'gpt-4o-mini',
                 messages: [
-                    { role: 'system', content: systemInstruction },
+                    { role: 'system', content: 'You are a strict JSON generator. Output only valid JSON.' },
                     { role: 'user', content: prompt }
                 ],
                 response_format: { type: "json_object" }
             });
-            const text = completion.choices[0]?.message?.content || '{}';
-            return JSON.parse(text);
+            return JSON.parse(completion.choices[0]?.message?.content || '{}');
         }
         else if (provider === 'anthropic') {
             const anthropic = client as Anthropic;
             const response = await anthropic.messages.create({
-                model: modelId,
+                model: modelId || 'claude-3-5-sonnet-latest',
                 max_tokens: 4000,
-                system: systemInstruction,
-                messages: [{ role: 'user', content: jsonPrompt }]
+                system: 'You are a strict JSON generator. Output only valid JSON.',
+                messages: [{ role: 'user', content: prompt }]
             });
-            const content = response.content[0];
             let text = '';
-            if (content.type === 'text') text = content.text;
+            if (response.content[0].type === 'text') text = response.content[0].text;
 
-            // Clean markdown just in case
+            // Clean markdown block if present
             text = text.replace(/```json/g, '').replace(/```/g, '').trim();
             return JSON.parse(text);
         }
+        else if (provider === 'vertex') {
+            const vertexAI = client as VertexAI;
+            const model = vertexAI.getGenerativeModel({
+                model: modelId || 'gemini-1.5-flash-001',
+                generationConfig: { responseMimeType: "application/json" }
+            });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.candidates?.[0].content.parts[0].text || '{}';
+            return JSON.parse(text);
+        }
         else {
-            // Gemini
+            // Gemini (AI Studio)
             const genAI = client as GoogleGenerativeAI;
             const model = genAI.getGenerativeModel({
-                model: modelId,
+                model: modelId || 'gemini-1.5-flash',
                 generationConfig: { responseMimeType: "application/json" }
             });
             const result = await model.generateContent(prompt);
@@ -301,45 +340,253 @@ export async function generateConnections(project?: string) {
 }
 
 export async function askBrain(query: string, project?: string) {
-    // 1. Fetch relevant history (Long Context approach)
-    // Get last 500 events (usually covers weeks of work)
-    let sql = `
-        SELECT e.* FROM events e
-        LEFT JOIN projects p ON e.project_id = p.id
-    `;
-    const params: any[] = [];
+    // 1. Retrieve relevant memories (RAG)
+    // We use the same hybrid/semantic search logic to find the most relevant events
+    // to answer the user's question, rather than just the last 500 logs.
+    const relevantEvents = await findSimilarEvents(query, project, 15);
 
+    if (relevantEvents.length === 0) {
+        return {
+            user_response: "I didn't find any information about that in your memories.",
+            related_memories: []
+        };
+    }
+
+    // 2. Prepare Context
+    const context = relevantEvents.map(e =>
+        `[${e.id}] (${e.timestamp}) [${e.type}]: ${e.text}`
+    ).join('\n');
+
+    const systemPrompt = `
+        You are an assistant specialized in interpreting user requests based on memories stored in the system.
+
+        GENERAL RULES:
+        1. Use exclusively the information provided by the retrieval mechanism (RAG).
+        2. Never invent data, dates, events, or actions that are not present in the retrieved memories.
+        3. If the information is not available, state clearly: "I did not find this information in your memories."
+        4. Interpret natural language variations and understand that the user may refer to the same event in different ways.
+        5. Prioritize precision, clarity, and traceability.
+
+        MANDATORY BEHAVIOR:
+        - Whenever a relevant memory is identified, return:
+          a) a natural response for the user
+          b) a structured object containing the corresponding memory(ies)
+
+        RESPONSE FORMAT:
+        ALWAYS respond in the following JSON format:
+
+        {
+          "user_response": "Clear and direct text answering the question.",
+          "related_memories": [
+            {
+              "id": "<memory_id>",
+              "excerpt": "<original_text_from_memory>",
+              "date": "<iso_timestamp>",
+              "type": "<memory_type>"
+            }
+          ]
+        }
+
+        RULES FOR THE BLOCK 'related_memories':
+        - Include only memories actually retrieved by the system/context.
+        - If there are multiple relevant memories, list all of them.
+        - If no memory is found, return an empty list.
+        - The "excerpt" must match the text from the context.
+    `;
+
+    const userPrompt = `
+        USER QUESTION: "${query}"
+
+        RETRIEVED MEMORIES (Context):
+        ${context}
+    `;
+
+    // 3. Generate Answer
+    try {
+        const result = await generateJSON(JSON.stringify({
+            system: systemPrompt,
+            user: userPrompt
+        }));
+
+        // Handle case where model might return raw text or slightly malformed JSON (though generateJSON tries to fix)
+        // If generateJSON is just receiving a prompt string (which it is), we pass the combo.
+        // Actually generateJSON signature is (prompt: string). 
+        // We should combine system and user prompt for the call.
+
+        return await generateJSON(`${systemPrompt}\n\n${userPrompt}`);
+
+    } catch (e: any) {
+        console.error("AskBrain RAG Error:", e);
+        return {
+            user_response: "I encountered an error trying to process your request.",
+            related_memories: []
+        };
+    }
+}
+
+// --- Embeddings & Semantic Search ---
+
+// Simple Cosine Similarity
+function cosineSimilarity(vecA: number[], vecB: number[]) {
+    let dotProduct = 0.0;
+    let normA = 0.0;
+    let normB = 0.0;
+    for (let i = 0; i < vecA.length; i++) {
+        dotProduct += vecA[i] * vecB[i];
+        normA += vecA[i] * vecA[i];
+        normB += vecB[i] * vecB[i];
+    }
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+export async function generateEmbedding(text: string): Promise<number[]> {
+    const { provider, modelId, client } = await getEmbeddingClient();
+
+    try {
+        if (provider === 'openai') {
+            const openai = client as OpenAI;
+            const response = await openai.embeddings.create({
+                model: modelId || "text-embedding-3-small",
+                input: text,
+                encoding_format: "float",
+            });
+            return response.data[0].embedding;
+        }
+        else if (provider === 'vertex') {
+            const vertexAI = client as VertexAI;
+            // Use proper model ID from settings or fallback
+            const modelName = modelId || "text-embedding-004";
+            const model = vertexAI.getGenerativeModel({ model: modelName });
+
+            const request = {
+                contents: [{ role: 'user', parts: [{ text }] }],
+            };
+            const result = await model.generateContent(request);
+            // @ts-ignore
+            return result;
+        }
+        else if (provider === 'anthropic') {
+            // Should be handled by fallback in getEmbeddingClient, but just in case
+            throw new Error("Anthropic does not support embeddings.");
+        }
+        else {
+            // Default: Gemini (AI Studio)
+            const genAI = client as GoogleGenerativeAI;
+            const modelName = modelId || "text-embedding-004";
+            console.log(`Generating embedding using model: ${modelName}`);
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.embedContent(text);
+            return result.embedding.values;
+        }
+    } catch (e: any) {
+        console.error("Embedding generation error:", e);
+        throw e;
+    }
+}
+
+export async function saveEmbedding(eventId: string, vector: number[], model: string = 'text-embedding-004') {
+    const vectorStr = JSON.stringify(vector);
+    db.prepare(`
+        INSERT INTO event_embeddings (event_id, vector, model, created_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(event_id) DO UPDATE SET
+            vector = excluded.vector,
+            model = excluded.model,
+            created_at = datetime('now')
+    `).run(eventId, vectorStr, model);
+}
+
+export async function findSimilarEvents(query: string, project?: string, limit: number = 5) {
+    let searchVectors: number[][] = [];
+
+    // 0. Multi-Variation Query Optimization (HyDE-lite)
+    // We generate 3 variations of the potential log entry to maximize the chance
+    // of a high-score match regardless of the exact phrasing in the DB.
+    try {
+        const refinementPrompt = `
+            You are a search optimizer for a developer's technical memory log.
+            
+            USER QUERY: "${query}"
+            
+            Task: Generate 3 distinct variations of how this event might be written in the logs (in English).
+            1. Concise headline style.
+            2. Detailed, descriptive technical entry.
+            3. Past-tense declarative statement.
+            
+            Output ONLY the 3 lines, separated by plain newlines. Do not use bullets or numbering.
+        `;
+
+        const text = await generateText(refinementPrompt);
+        const variations = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+        console.log(`[Semantic Search] Variations:`, variations);
+
+        if (variations.length > 0) {
+            // Embed all variations in parallel
+            searchVectors = await Promise.all(variations.map(v => generateEmbedding(v)));
+        } else {
+            // Fallback
+            searchVectors = [await generateEmbedding(query)];
+        }
+    } catch (e) {
+        console.warn("Query optimization failed, using original:", e);
+        searchVectors = [await generateEmbedding(query)];
+    }
+
+    // 2. Fetch all embeddings + event meta
+    let sql = `
+        SELECT ee.event_id, ee.vector, e.text, e.type, e.timestamp, p.name as project
+        FROM event_embeddings ee
+        JOIN events e ON ee.event_id = e.id
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE (e.type != 'git_commit') AND (e.source != 'git' OR e.source IS NULL)
+    `;
+
+    const params: any[] = [];
     if (project) {
-        sql += ' WHERE p.name = ?';
+        sql += ' AND p.name = ?';
         params.push(project);
     }
 
-    sql += ' ORDER BY e.timestamp DESC LIMIT 500';
+    const rows = db.prepare(sql).all(...params) as any[];
 
-    const events = db.prepare(sql).all(...params) as any[];
+    // 3. Calculate similarity (Max of variations)
+    const results = rows.map(row => {
+        const docVector = JSON.parse(row.vector);
+        // We take the BEST match from our 3 variations
+        const bestSimilarity = Math.max(...searchVectors.map(qv => cosineSimilarity(qv, docVector)));
+        return { ...row, similarity: bestSimilarity };
+    });
 
-    if (events.length === 0) {
-        return "I don't have enough memories stored yet to answer that.";
+    // 4. Sort and limit
+    return results
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit)
+        .map(({ vector, ...rest }) => rest);
+}
+
+export async function backfillEmbeddings() {
+    console.log("Starting embedding backfill...");
+    const events = db.prepare(`
+        SELECT e.id, e.text 
+        FROM events e 
+        LEFT JOIN event_embeddings ee ON e.id = ee.event_id 
+        WHERE ee.event_id IS NULL
+    `).all() as { id: string, text: string }[];
+
+    console.log(`Found ${events.length} events needing embeddings.`);
+
+    for (const event of events) {
+        if (!event.text || event.text.length < 3) continue;
+        try {
+            const vector = await generateEmbedding(event.text);
+            await saveEmbedding(event.id, vector);
+            console.log(`Generated embedding for ${event.id}`);
+            // Rate limit prevention (simple delay)
+            await new Promise(r => setTimeout(r, 200));
+        } catch (err) {
+            console.error(`Failed to embed event ${event.id}:`, err);
+        }
     }
-
-    const context = events.reverse().map(e =>
-        `[${e.timestamp}] [${e.type}] ${e.source ? `(${e.source}) ` : ''}: ${e.text}`
-    ).join('\n');
-
-    const prompt = `
-        You are the user's "Second Brain". You have access to their development logs and memories below.
-        
-        USER QUESTION: "${query}"
-        
-        MEMORY STREAM (Context):
-        ${context}
-        
-        INSTRUCTIONS:
-        - Answer based ONLY on the provided memory stream.
-        - If you find the answer, cite the specific event date or ID if possible.
-        - If the answer isn't in the memories, say so politely.
-        - Be helpful, technical, and concise.
-    `;
-
-    return await generateText(prompt, "You are a helpful knowledgeable coding assistant.");
+    console.log("Backfill complete.");
 }

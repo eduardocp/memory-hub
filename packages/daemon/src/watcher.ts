@@ -137,6 +137,10 @@ export class Watcher {
             // Notify clients
             this.io.emit('events:updated');
 
+            // Trigger embedding backfill for new events found in file
+            // Fire and forget to not block watcher
+            import('./ai.js').then(ai => ai.backfillEmbeddings()).catch(err => console.error("Failed to trigger backfill:", err));
+
             // TODO: Evaluate triggers here
         } catch (err) {
             console.error(`Error processing ${filePath}:`, err);

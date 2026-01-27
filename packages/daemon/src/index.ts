@@ -12,7 +12,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { listTemplates, generateReport } from './reports.js';
 import { gitService } from './git.js';
-import { generateDailySummary, generateConnections, generateText, askBrain, AI_PROVIDERS } from './ai.js';
+import { generateDailySummary, generateConnections, generateText, askBrain, AI_PROVIDERS, findSimilarEvents, backfillEmbeddings, generateEmbedding, saveEmbedding } from './ai.js';
 import { initScheduler, scheduleTrigger, removeTriggerJob } from './scheduler.js';
 
 const app = express();
@@ -309,6 +309,11 @@ app.post('/events', (req, res) => {
         memory.events.push(newEvent);
         fs.writeFileSync(memoryPath, JSON.stringify(memory, null, 2));
 
+        // Generate Embedding async
+        generateEmbedding(text)
+            .then(vector => saveEmbedding(newEvent.id, vector))
+            .catch(err => console.error(`Failed to generate embedding for event ${newEvent.id}:`, err));
+
         res.json({ success: true, event: newEvent });
     } catch (err: any) {
         console.error(err);
@@ -436,6 +441,25 @@ app.post('/ai/chat', async (req, res) => {
         console.error(err);
         res.status(500).json({ error: err.message });
     }
+});
+
+app.post('/ai/search/semantic', async (req, res) => {
+    try {
+        const { query, project, limit } = req.body;
+        if (!query) return res.status(400).json({ error: 'Query is required' });
+
+        const results = await findSimilarEvents(query, project, limit);
+        res.json({ success: true, results });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/ai/embeddings/backfill', async (req, res) => {
+    // Start backfill in background
+    backfillEmbeddings().catch(err => console.error("Backfill failed:", err));
+    res.json({ success: true, message: "Backfill started in background" });
 });
 
 // ---- TRIGGERS API ----
@@ -681,6 +705,12 @@ io.on('connection', (socket) => {
 
             // Broadcast to all clients
             io.emit('events:new', newEvent);
+
+            // Generate Embedding async
+            generateEmbedding(text)
+                .then(vector => saveEmbedding(newEvent.id, vector))
+                .catch(err => console.error(`Failed to generate embedding for event ${newEvent.id}:`, err));
+
             callback({ success: true, event: newEvent });
         } catch (err: any) {
             callback({ success: false, error: err.message });
