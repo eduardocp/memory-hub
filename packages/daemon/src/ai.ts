@@ -19,7 +19,7 @@ export const AI_PROVIDERS = {
             { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', type: 'chat' },
             { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', type: 'chat' },
             { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', type: 'chat' },
-            { id: 'text-embedding-004', name: 'Text Embedding 004', type: 'embedding' }
+            { id: 'gemini-embedding-001', name: 'Gemini Embedding 001', type: 'embedding' }
         ]
     },
     vertex: {
@@ -29,7 +29,7 @@ export const AI_PROVIDERS = {
             { id: 'gemini-2.5-pro-001', name: 'Gemini 2.5 Pro', type: 'chat' },
             { id: 'gemini-1.5-flash-001', name: 'Gemini 1.5 Flash', type: 'chat' },
             { id: 'gemini-1.5-pro-001', name: 'Gemini 1.5 Pro', type: 'chat' },
-            { id: 'text-embedding-004', name: 'Text Embedding 004', type: 'embedding' }
+            { id: 'gemini-embedding-001', name: 'Gemini Embedding 001', type: 'embedding' }
         ]
     },
     openai: {
@@ -103,13 +103,13 @@ async function getChatClient() {
 
 async function getEmbeddingClient() {
     const provider = (getSetting('embedding_provider') as AIProvider) || 'gemini';
-    const modelId = getSetting('embedding_model') || 'text-embedding-004';
+    const modelId = getSetting('embedding_model') || 'gemini-embedding-001';
 
     // Fallback: If provider is anthropic (no embeddings), switch to gemini
     if (provider === 'anthropic') {
         return {
             provider: 'gemini' as AIProvider,
-            modelId: 'text-embedding-004',
+            modelId: 'gemini-embedding-001',
             client: createClient('gemini')
         };
     }
@@ -455,7 +455,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
         else if (provider === 'vertex') {
             const vertexAI = client as VertexAI;
             // Use proper model ID from settings or fallback
-            const modelName = modelId || "text-embedding-004";
+            const modelName = modelId || "gemini-embedding-001";
             const model = vertexAI.getGenerativeModel({ model: modelName });
 
             const request = {
@@ -472,7 +472,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
         else {
             // Default: Gemini (AI Studio)
             const genAI = client as GoogleGenerativeAI;
-            const modelName = modelId || "text-embedding-004";
+            const modelName = modelId || "gemini-embedding-001";
             console.log(`Generating embedding using model: ${modelName}`);
             const model = genAI.getGenerativeModel({ model: modelName });
             const result = await model.embedContent(text);
@@ -484,7 +484,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     }
 }
 
-export async function saveEmbedding(eventId: string, vector: number[], model: string = 'text-embedding-004') {
+export async function saveEmbedding(eventId: string, vector: number[], model: string = 'gemini-embedding-001') {
     const vectorStr = JSON.stringify(vector);
     db.prepare(`
         INSERT INTO event_embeddings (event_id, vector, model, created_at)

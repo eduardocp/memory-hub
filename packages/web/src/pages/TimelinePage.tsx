@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Lightbulb, RotateCcw, Star, Settings, X, Sparkles, Bug, FlaskConical, Rocket, Folder, Filter, ChevronDown, GitBranch, BrainCircuit } from 'lucide-react';
+import { Search, Lightbulb, RotateCcw, Star, Settings, X, Sparkles, Bug, FlaskConical, Rocket, Folder, Filter, GitBranch, BrainCircuit } from 'lucide-react';
 import clsx from 'clsx';
 import { format, isToday, isYesterday, subDays, startOfDay, endOfDay } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
@@ -15,6 +15,7 @@ import type { HelperEvent, Project } from '../domain/models';
 import { EVENT_TYPES, DATE_FILTERS } from '../shared/constants';
 import { projectSchema } from '../shared/schemas';
 import type { ProjectFormData } from '../shared/schemas';
+import { Select } from '../components/Select';
 
 export function TimelinePage() {
   const [events, setEvents] = useState<HelperEvent[]>([]);
@@ -340,27 +341,23 @@ export function TimelinePage() {
         <div className="h-4 w-[1px] bg-border/50 mx-1 shrink-0" />
 
         {/* Date Filter */}
-        <div className="relative group">
-            <select 
+        <div className="w-40">
+            <Select 
                 value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="appearance-none bg-surface hover:bg-border border border-border/50 rounded-full py-1.5 pl-3 pr-8 text-xs font-medium focus:outline-none cursor-pointer text-primary transition-colors"
-            >
-                {DATE_FILTERS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary pointer-events-none" />
+                onChange={(val) => setDateRange(val)}
+                options={DATE_FILTERS}
+                placeholder="Date Range"
+            />
         </div>
 
         {/* Type Filter */}
-        <div className="relative group">
-             <select 
+        <div className="w-40">
+             <Select 
                 value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="appearance-none bg-surface hover:bg-border border border-border/50 rounded-full py-1.5 pl-3 pr-8 text-xs font-medium focus:outline-none cursor-pointer text-primary transition-colors"
-            >
-                {EVENT_TYPES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary pointer-events-none" />
+                onChange={(val) => setSelectedType(val)}
+                options={EVENT_TYPES}
+                placeholder="Event Type"
+            />
         </div>
       </div>
 

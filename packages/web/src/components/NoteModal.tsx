@@ -9,6 +9,7 @@ import { noteSchema } from '../shared/schemas';
 import type { NoteFormData } from '../shared/schemas';
 import type { Project } from '../domain/models';
 import { NOTE_TYPES } from '../shared/constants';
+import { Select } from './Select';
 
 interface NoteModalProps {
     isOpen: boolean;
@@ -36,6 +37,7 @@ export function NoteModal({ isOpen, onClose }: NoteModalProps) {
     });
 
     const watchedProject = watch('project');
+    const watchedType = watch('type');
 
     // Fetch projects when modal opens
     useEffect(() => {
@@ -89,31 +91,25 @@ export function NoteModal({ isOpen, onClose }: NoteModalProps) {
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-xs font-medium text-secondary mb-1">Project</label>
-                            <select 
-                                {...register('project')}
-                                className={clsx(
-                                    "w-full bg-background border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent",
-                                    errors.project ? "border-red-500/50 focus:border-red-500" : "border-border"
-                                )}
-                            >
-                                <option value="" disabled>Select a project</option>
-                                {projects.map(p => (
-                                    <option key={p.id} value={p.name}>{p.name}</option>
-                                ))}
-                            </select>
-                            {errors.project && <span className="text-red-400 text-xs mt-1 block">{errors.project.message}</span>}
+                            <Select
+                                label="Project"
+                                value={watchedProject || ''}
+                                onChange={(val) => setValue('project', val)}
+                                placeholder="Select a project"
+                                options={projects.map(p => ({
+                                    label: p.name,
+                                    value: p.name
+                                }))}
+                                error={errors.project?.message}
+                            />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-secondary mb-1">Type</label>
-                            <select 
-                                {...register('type')}
-                                className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent"
-                            >
-                                {NOTE_TYPES.map(type => (
-                                    <option key={type.value} value={type.value}>{type.label}</option>
-                                ))}
-                            </select>
+                            <Select
+                                label="Type"
+                                value={watchedType}
+                                onChange={(val) => setValue('type', val)}
+                                options={NOTE_TYPES}
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-secondary mb-1">Content</label>

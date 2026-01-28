@@ -44,6 +44,72 @@ setInterval(() => {
 // Initial run
 gitService.syncAllProjects();
 
+// MCP Client Routes
+import { mcpClientService } from './mcp-client.js';
+
+// Init MCP Service (Optional: Auto-start enabled servers)
+// mcpClientService.startAll();
+
+app.get('/mcp/servers', (req, res) => {
+    try {
+        const servers = mcpClientService.listServers();
+        // Enrich with realtime connection status check if needed, 
+        // relying on DB status is fine for now as updateStatus updates DB.
+        res.json(servers);
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/mcp/servers', async (req, res) => {
+    try {
+        const newServer = mcpClientService.addServer(req.body);
+        if (newServer?.enabled) {
+            // Try to auto connect
+            await mcpClientService.connect(newServer.id).catch(err => console.error("Auto-connect failed:", err));
+        }
+        res.json(newServer);
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/mcp/servers/:id', async (req, res) => {
+    try {
+        await mcpClientService.deleteServer(req.params.id);
+        res.json({ success: true });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/mcp/servers/:id/start', async (req, res) => {
+    try {
+        await mcpClientService.connect(req.params.id);
+        res.json({ success: true });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/mcp/servers/:id/stop', async (req, res) => {
+    try {
+        await mcpClientService.stop(req.params.id);
+        res.json({ success: true });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/mcp/servers/:id/tools', async (req, res) => {
+    try {
+        const tools = await mcpClientService.listTools(req.params.id);
+        res.json(tools);
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // API Routes
 
 app.post('/git/hook', async (req, res) => {

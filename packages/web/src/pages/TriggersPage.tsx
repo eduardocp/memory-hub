@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { API_URL } from '../config';
+import { Select } from '../components/Select';
 
 interface Trigger {
   id: string;
@@ -59,6 +60,8 @@ export function TriggersPage() {
   });
 
   const watchedSchedule = watch('schedule');
+  const watchedAction = watch('action');
+  const watchedProject = watch('project');
 
   useEffect(() => {
     fetchData();
@@ -219,47 +222,43 @@ export function TriggersPage() {
                       </div>
                       
                       <div>
-                          <label className="block text-xs text-secondary mb-1.5">Action</label>
-                          <select 
-                            {...register('action')}
-                            className="w-full bg-surface border border-white/10 rounded px-3 py-2 text-sm focus:border-accent outline-none"
-                          >
-                              <option value="daily_summary">Generate Daily Summary</option>
-                              <option value="generate_report">Generate Specific Report (Coming Soon)</option>
-                          </select>
+                          <Select
+                              label="Action"
+                              value={watchedAction}
+                              onChange={(val) => setValue('action', val)}
+                              options={[
+                                  { label: "Generate Daily Summary", value: "daily_summary" },
+                                  { label: "Generate Specific Report (Coming Soon)", value: "generate_report" }
+                              ]}
+                          />
                       </div>
 
                       <div>
-                          <label className="block text-xs text-secondary mb-1.5">Target Project <span className="text-secondary/50 font-normal">(Optional)</span></label>
-                          <select 
-                            {...register('project')}
-                            className={clsx(
-                                "w-full bg-surface border rounded px-3 py-2 text-sm outline-none transition-all",
-                                errors.project 
-                                    ? "border-red-500/50 focus:border-red-500" 
-                                    : "border-white/10 focus:border-accent"
-                            )}
-                          >
-                              <option value="">All Projects (Global)</option>
-                              {projects.map(p => (
-                                  <option key={p.name} value={p.name}>{p.name}</option>
-                              ))}
-                          </select>
+                          <Select
+                              label="Target Project (Optional)"
+                              value={watchedProject || ''}
+                              onChange={(val) => setValue('project', val)}
+                              options={[
+                                  { label: "All Projects (Global)", value: "" },
+                                  ...projects.map(p => ({ label: p.name, value: p.name }))
+                              ]}
+                          />
                           {errors.project && <p className="text-red-400 text-[10px] mt-1">{errors.project.message}</p>}
                       </div>
 
                       <div>
-                          <label className="block text-xs text-secondary mb-1.5">Schedule <span className="text-red-400">*</span></label>
-                          <select 
-                             className="w-full bg-surface border border-white/10 rounded px-3 py-2 text-sm focus:border-accent outline-none mb-2"
-                             value={watchedSchedule} // Sync with form state
-                             onChange={e => setValue('schedule', e.target.value, { shouldValidate: true })}
-                          >
-                              <option value="0 9 * * *">Daily at 9:00 AM</option>
-                              <option value="0 18 * * *">Daily at 6:00 PM</option>
-                              <option value="0 18 * * 5">Every Friday at 6:00 PM (Weekly)</option>
-                              <option value="*/30 * * * *">Every 30 Minutes (Test)</option>
-                          </select>
+                          <Select
+                              label="Schedule (Presets)"
+                              value={watchedSchedule}
+                              onChange={(val) => setValue('schedule', val, { shouldValidate: true })}
+                              options={[
+                                  { label: "Daily at 9:00 AM", value: "0 9 * * *" },
+                                  { label: "Daily at 6:00 PM", value: "0 18 * * *" },
+                                  { label: "Every Friday at 6:00 PM (Weekly)", value: "0 18 * * 5" },
+                                  { label: "Every 30 Minutes (Test)", value: "*/30 * * * *" }
+                              ]}
+                              className="mb-2"
+                          />
                           <input 
                             {...register('schedule')}
                             className={clsx(

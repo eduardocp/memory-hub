@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Select } from '../components/Select';
 
 const focusSchema = z.object({
     task: z.string().min(1, "What are you working on?"),
@@ -173,12 +174,12 @@ export function FocusPage() {
                 {/* Project Selector (Subtle) */}
                 {!isFinished && (
                     <div className="w-full max-w-xs">
-                        <select 
-                            {...register('project')}
-                            className="w-full bg-surface/50 text-secondary text-xs text-center py-1 rounded-full border border-white/5 focus:outline-none focus:border-accent/50 appearance-none cursor-pointer hover:bg-surface"
-                        >
-                            {projects.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                        </select>
+                        <Select
+                            value={watchedProject || ''}
+                            onChange={(val) => setValue('project', val)}
+                            options={projects.map(p => ({ label: p.name, value: p.name }))}
+                            placeholder="Select Project"
+                        />
                     </div>
                 )}
 

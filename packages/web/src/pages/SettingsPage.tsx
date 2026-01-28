@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Save, Lock, Cpu, Key, Activity, Eye, EyeOff, Zap, Check, AlertCircle } from 'lucide-react';
+import { Save, Lock, Cpu, Activity, Eye, Zap, Check, AlertCircle } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { API_URL } from '../config';
+import { Select } from '../components/Select';
 
 const settingsSchema = z.object({
   // Global
@@ -47,7 +48,8 @@ export function SettingsPage() {
       register,
       handleSubmit,
       reset,
-      watch
+      watch,
+      setValue
   } = useForm<SettingsFormData>({
       resolver: zodResolver(settingsSchema as any),
       defaultValues: {
@@ -74,6 +76,8 @@ export function SettingsPage() {
 
   const watchedAiProvider = watch('ai_provider');
   const watchedEmbeddingProvider = watch('embedding_provider');
+  const watchedAiModel = watch('ai_model');
+  const watchedEmbeddingModel = watch('embedding_model');
   const watchedFileWatcher = watch('file_watcher_enabled');
   const watchedGitSync = watch('git_sync_enabled');
 
@@ -320,27 +324,27 @@ export function SettingsPage() {
                     <div className="grid grid-cols-1 gap-5">
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-medium text-secondary mb-1.5">Provider</label>
-                                <select 
-                                    {...register('ai_provider')}
-                                    className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
-                                >
-                                    {Object.keys(modelsConfig).map(key => (
-                                        <option key={key} value={key}>{modelsConfig[key].name}</option>
-                                    ))}
-                                </select>
+                                <Select
+                                    label="Provider"
+                                    value={watchedAiProvider}
+                                    onChange={(val) => setValue('ai_provider', val)}
+                                    options={Object.keys(modelsConfig).map(key => ({
+                                        label: modelsConfig[key].name,
+                                        value: key
+                                    }))}
+                                />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-secondary mb-1.5">Model</label>
-                                <select 
-                                    {...register('ai_model')}
-                                    className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
-                                >
-                                    <option value="" disabled>Select a chat model</option>
-                                    {activeChatProviderConfig?.models.filter((m:any) => m.type !== 'embedding').map((m: any) => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                </select>
+                                <Select
+                                    label="Model"
+                                    value={watchedAiModel || ''}
+                                    onChange={(val) => setValue('ai_model', val)}
+                                    placeholder="Select a chat model"
+                                    options={(activeChatProviderConfig?.models.filter((m: any) => m.type !== 'embedding') || []).map((m: any) => ({
+                                        label: m.name,
+                                        value: m.id
+                                    }))}
+                                />
                             </div>
                        </div>
                        
@@ -363,27 +367,27 @@ export function SettingsPage() {
                     <div className="grid grid-cols-1 gap-5">
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-medium text-secondary mb-1.5">Provider</label>
-                                <select 
-                                    {...register('embedding_provider')}
-                                    className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
-                                >
-                                    {Object.keys(modelsConfig).filter(k => k !== 'anthropic').map(key => (
-                                        <option key={key} value={key}>{modelsConfig[key].name}</option>
-                                    ))}
-                                </select>
+                                <Select
+                                    label="Provider"
+                                    value={watchedEmbeddingProvider || 'gemini'}
+                                    onChange={(val) => setValue('embedding_provider', val)}
+                                    options={Object.keys(modelsConfig).filter(k => k !== 'anthropic').map(key => ({
+                                        label: modelsConfig[key].name,
+                                        value: key
+                                    }))}
+                                />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-secondary mb-1.5">Embedding Model</label>
-                                <select 
-                                    {...register('embedding_model')}
-                                    className="w-full bg-background border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent text-white transition-all appearance-none"
-                                >
-                                    <option value="" disabled>Select model</option>
-                                    {activeEmbeddingProviderConfig?.models.filter((m:any) => m.type === 'embedding').map((m: any) => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                </select>
+                                <Select
+                                    label="Embedding Model"
+                                    value={watchedEmbeddingModel || ''}
+                                    onChange={(val) => setValue('embedding_model', val)}
+                                    placeholder="Select model"
+                                    options={(activeEmbeddingProviderConfig?.models.filter((m: any) => m.type === 'embedding') || []).map((m: any) => ({
+                                        label: m.name,
+                                        value: m.id
+                                    }))}
+                                />
                             </div>
                        </div>
 
