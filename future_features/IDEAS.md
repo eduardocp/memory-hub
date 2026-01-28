@@ -35,7 +35,7 @@
 
 **Complexidade:** Alta  
 **Prioridade:** 🥈 Média  
-**Status:** [ ] Não iniciado
+**Status:** [x] Concluído
 
 #### 🧠 Conceito
 Transformar o Memory Hub em um "segundo cérebro" capaz de entender o **significado** das memórias, permitindo perguntas como *"O que ficou pendente da sprint passada?"* ou encontrar eventos relacionados semanticamente (ex: "login" encontra "autenticação").
@@ -111,7 +111,7 @@ graph LR
 
 **Complexidade:** Baixa  
 **Prioridade:** 🥇 Alta  
-**Status:** [ ] Não iniciado
+**Status:** [x] Concluído
 
 ---
 
@@ -668,8 +668,8 @@ DAEMON
 | Prioridade | Funcionalidade | Valor | Complexidade |
 |------------|---------------|-------|--------------|
 | 🥇 Alta | Standup/Report Generator | Alto | Baixa |
-| 🥇 Alta | Git Integration | Alto | Média |
-| 🥇 Alta | CLI Enhancements | Alto | Baixa |
+| 🥇 Alta | Git Integration | Alto | Média | [x] Concluído |
+| 🥇 Alta | CLI Enhancements | Alto | Baixa | [x] Concluído |
 | 🥈 Média | Analytics Dashboard | Médio | Média |
 | 🥈 Média | Busca Semântica IA | Alto | Alta |
 | 🥈 Média | Templates de Eventos | Médio | Baixa |

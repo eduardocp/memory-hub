@@ -34,6 +34,28 @@ export class GitService {
         console.log('Git Sync Completed.');
     }
 
+    async syncProjectNow(projectPath: string) {
+        // Find project by path
+        const project = db.prepare('SELECT * FROM projects WHERE path = ?').get(projectPath) as { id: string, path: string, name: string } | undefined;
+        if (!project) {
+            // Maybe it's a subdirectory? Try to find root.
+            // For now, assume exact match or close enough to be found by finding registered parents
+            // Simple fallback: scan all projects and see if path starts with property
+            const allProjects = db.prepare('SELECT * FROM projects').all() as { id: string, path: string, name: string }[];
+            const match = allProjects.find(p => projectPath.startsWith(p.path));
+
+            if (match) {
+                await this.syncProject(match);
+                return { success: true, project: match.name };
+            }
+
+            throw new Error('Project not tracked by Memory Hub');
+        }
+
+        await this.syncProject(project);
+        return { success: true, project: project.name };
+    }
+
     private findGitRoot(startPath: string): string | null {
         let current = startPath;
         const root = path.parse(current).root;

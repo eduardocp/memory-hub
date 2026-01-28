@@ -41,9 +41,28 @@ setInterval(() => {
     gitService.syncAllProjects();
 }, 10 * 60 * 1000);
 // Initial run
+// Initial run
 gitService.syncAllProjects();
 
 // API Routes
+
+app.post('/git/hook', async (req, res) => {
+    const { path } = req.body;
+    if (!path) return res.status(400).json({ error: 'Path is required' });
+
+    console.log(`[Webhook] Git event received for path: ${path}`);
+    try {
+        const result = await gitService.syncProjectNow(path);
+        res.json(result);
+    } catch (err: any) {
+        console.error('Git Hook Error:', err.message);
+        // Don't fail the hook, just log error mostly (though 404 might be useful context)
+        // If we 500, git hook might complain in user console. Let's return 200 but with error payload if needed, 
+        // or just strict error codes.
+        if (err.message.includes('not tracked')) return res.status(404).json({ error: err.message });
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.get('/status', (req, res) => {
     res.json({ status: 'running', version: '1.0.0' });
