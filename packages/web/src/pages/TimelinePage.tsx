@@ -321,7 +321,7 @@ export function TimelinePage() {
       </div>
 
       {/* Filters Toolbar */}
-      <div className="mb-8 flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="mb-8 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-card rounded-full border border-border/50 text-xs text-secondary">
              <Filter size={12} />
              <span>Filters:</span>

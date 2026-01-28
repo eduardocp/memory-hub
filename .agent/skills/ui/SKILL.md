@@ -56,9 +56,10 @@ Use these semantic names instead of raw hex values:
 ### Component Guidelines
 
 1.  **Keep it Simple**: Components should be focused on a single responsibility.
-2.  **Reusable**: Extract common patterns into `components/`.
-3.  **Tailwind**: Use utility classes for styling. Avoid custom CSS unless for complex animations or legacy overrides.
-4.  **Lucide Icons**: Import icons from `lucide-react`.
+1.  **Reusable**: Extract common patterns into `components/`.
+1.  **Tailwind**: Use utility classes for styling. Avoid custom CSS unless for complex animations or legacy overrides.
+1.  **Lucide Icons**: Import icons from `lucide-react`.
+1.  **Models**: Use/create models in `domain/` for data structures.
 
 ## Best Practices
 

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { initDB } from './db.js';
@@ -43,6 +44,46 @@ setInterval(() => {
 // Initial run
 // Initial run
 gitService.syncAllProjects();
+
+// MCP Auth Routes
+// Store pending auth server ID (for providers that don't return state)
+let pendingAuthServerId: string | null = null;
+
+app.get('/mcp/auth/start', async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id || typeof id !== 'string') return res.status(400).send('Missing server ID');
+
+        // Store the server ID for callback (in case provider doesn't return state)
+        pendingAuthServerId = id;
+
+        await mcpClientService.startAuth(id, res);
+    } catch (e: any) {
+        console.error("Auth Start Error:", e);
+        res.status(500).send(e.message);
+    }
+});
+
+app.get('/mcp/auth/callback', async (req, res) => {
+    try {
+        const { code, state } = req.query;
+        if (!code || typeof code !== 'string') return res.status(400).send('Missing code');
+
+        // Use state if provided, otherwise use the pending server ID
+        let serverId = state as string | undefined;
+        if (!serverId && pendingAuthServerId) {
+            serverId = pendingAuthServerId;
+            pendingAuthServerId = null; // Clear after use
+        }
+
+        if (!serverId) return res.status(400).send('Missing state and no pending auth');
+
+        await mcpClientService.handleAuthCallback(code, serverId, res);
+    } catch (e: any) {
+        console.error("Auth Callback Error:", e);
+        res.status(500).send(e.message);
+    }
+});
 
 // MCP Client Routes
 import { mcpClientService } from './mcp-client.js';
@@ -108,6 +149,11 @@ app.get('/mcp/servers/:id/tools', async (req, res) => {
     } catch (e: any) {
         res.status(500).json({ error: e.message });
     }
+});
+
+import { MCP_PRESETS } from './presets.js';
+app.get('/mcp/presets', (req, res) => {
+    res.json(MCP_PRESETS);
 });
 
 // API Routes

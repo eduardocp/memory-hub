@@ -90,6 +90,14 @@
       "type": "idea",
       "text": "Ideia futura: Captura de Contexto Web (Browser Extension) para salvar URLs e snippets de pesquisa diretamente no Memory Hub.",
       "project": "memory-hub"
+    },
+    {
+      "id": "5517095e-9cae-48f9-8fdd-ac071ad78d12",
+      "timestamp": "2026-01-28T14:18:21.514Z",
+      "type": "bug_update",
+      "text": "Fixed a UI bug on the Timeline page where filter dropdowns were being clipped/cut off. \nThe issue was caused by the parent container having `overflow-x-auto` (horizontal scrolling), which clips absolute positioned children. \nSolution: Replaced `overflow-x-auto` with `flex-wrap` on the filters container in `TimelinePage.tsx`, allowing dropdowns to float correctly over the content.",
+      "project": "memory-hub",
+      "source": "ai"
     }
   ]
 }
