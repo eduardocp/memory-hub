@@ -11,7 +11,7 @@ This document lists the instructions and behavioral patterns defined throughout 
 ## 1. Language and Communication
 
 - **Always speak in Brazilian Portuguese**
-- Only **code must be in English** (including code comments and commit messages)
+- **Code MUST be in English** (including code comments and commit messages)
 
 ---
 

@@ -10,6 +10,7 @@ import { BrainPage } from './pages/BrainPage';
 import { TriggersPage } from './pages/TriggersPage';
 import { DiaryPage } from './pages/DiaryPage';
 import { McpServersPage } from './pages/McpServersPage';
+import { InstructionsPage } from './pages/InstructionsPage';
 
 import { SocketProvider } from './context/SocketContext';
 
@@ -30,6 +31,7 @@ function App() {
                     <Route path="/triggers" element={<TriggersPage />} />
                     <Route path="/mcp" element={<McpServersPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/instructions" element={<InstructionsPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
                   </Routes>
                 </Layout>

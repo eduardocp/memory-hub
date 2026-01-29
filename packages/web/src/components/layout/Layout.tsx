@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Settings, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2, Zap, BookOpen, Box } from 'lucide-react';
+import { Home, Settings, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2, Zap, BookOpen, Box, HelpCircle } from 'lucide-react';
 import clsx from 'clsx';
 import axios from 'axios';
 import { useSocket } from '../../context/SocketContext';
@@ -56,6 +56,7 @@ export function Layout({ children }: LayoutProps) {
     { icon: Zap, label: 'Automations', path: '/triggers' },
     { icon: FileText, label: 'Reports', path: '/reports' },
     { icon: Box, label: 'Integrations', path: '/mcp' },
+    { icon: HelpCircle, label: 'Instructions', path: '/instructions' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 
