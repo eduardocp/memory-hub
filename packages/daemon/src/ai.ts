@@ -427,17 +427,7 @@ export async function askBrain(query: string, project?: string) {
 // --- Embeddings & Semantic Search ---
 
 // Simple Cosine Similarity
-function cosineSimilarity(vecA: number[], vecB: number[]) {
-    let dotProduct = 0.0;
-    let normA = 0.0;
-    let normB = 0.0;
-    for (let i = 0; i < vecA.length; i++) {
-        dotProduct += vecA[i] * vecB[i];
-        normA += vecA[i] * vecA[i];
-        normB += vecB[i] * vecB[i];
-    }
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
+
 
 export async function generateEmbedding(text: string): Promise<number[]> {
     const { provider, modelId, client } = await getEmbeddingClient();
@@ -485,7 +475,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 export async function saveEmbedding(eventId: string, vector: number[], model: string = 'gemini-embedding-001') {
-    const vectorStr = JSON.stringify(vector);
+    const vectorBuffer = Buffer.from(new Float32Array(vector).buffer);
     db.prepare(`
         INSERT INTO event_embeddings (event_id, vector, model, created_at)
         VALUES (?, ?, ?, datetime('now'))
@@ -493,15 +483,13 @@ export async function saveEmbedding(eventId: string, vector: number[], model: st
             vector = excluded.vector,
             model = excluded.model,
             created_at = datetime('now')
-    `).run(eventId, vectorStr, model);
+    `).run(eventId, vectorBuffer, model);
 }
 
 export async function findSimilarEvents(query: string, project?: string, limit: number = 5) {
     let searchVectors: number[][] = [];
 
     // 0. Multi-Variation Query Optimization (HyDE-lite)
-    // We generate 3 variations of the potential log entry to maximize the chance
-    // of a high-score match regardless of the exact phrasing in the DB.
     try {
         const refinementPrompt = `
             You are a search optimizer for a developer's technical memory log.
@@ -522,10 +510,8 @@ export async function findSimilarEvents(query: string, project?: string, limit: 
         console.log(`[Semantic Search] Variations:`, variations);
 
         if (variations.length > 0) {
-            // Embed all variations in parallel
             searchVectors = await Promise.all(variations.map(v => generateEmbedding(v)));
         } else {
-            // Fallback
             searchVectors = [await generateEmbedding(query)];
         }
     } catch (e) {
@@ -533,36 +519,49 @@ export async function findSimilarEvents(query: string, project?: string, limit: 
         searchVectors = [await generateEmbedding(query)];
     }
 
-    // 2. Fetch all embeddings + event meta
-    let sql = `
-        SELECT ee.event_id, ee.vector, e.text, e.type, e.timestamp, p.name as project
-        FROM event_embeddings ee
-        JOIN events e ON ee.event_id = e.id
-        LEFT JOIN projects p ON e.project_id = p.id
-        WHERE (e.type != 'git_commit') AND (e.source != 'git' OR e.source IS NULL)
-    `;
+    // 2. Perform Parallel Search for each variation using sqlite-vec
+    // We execute one query per variation and merge results
+    const allResults = new Map<string, any>();
 
-    const params: any[] = [];
-    if (project) {
-        sql += ' AND p.name = ?';
-        params.push(project);
+    for (const vec of searchVectors) {
+        const vecBuffer = Buffer.from(new Float32Array(vec).buffer);
+
+        let sql = `
+            SELECT ee.event_id, e.text, e.type, e.timestamp, p.name as project,
+                   vec_distance_cosine(ee.vector, ?) as distance
+            FROM event_embeddings ee
+            JOIN events e ON ee.event_id = e.id
+            LEFT JOIN projects p ON e.project_id = p.id
+            WHERE (e.type != 'git_commit') AND (e.source != 'git' OR e.source IS NULL)
+        `;
+
+        const params: any[] = [vecBuffer];
+        if (project) {
+            sql += ' AND p.name = ?';
+            params.push(project);
+        }
+
+        sql += ` ORDER BY distance ASC LIMIT ${limit}`;
+
+        const rows = db.prepare(sql).all(...params) as any[];
+
+        for (const row of rows) {
+            // Keep the best (lowest) distance if we see the same event multiple times
+            if (!allResults.has(row.event_id) || row.distance < allResults.get(row.event_id).distance) {
+                // Convert distance back to similarity for compatibility (1 - distance)
+                // Note: distance can be slightly > 1 or < 0 due to float precision, clamp it
+                let similarity = 1 - row.distance;
+                allResults.set(row.event_id, { ...row, similarity });
+            }
+        }
     }
 
-    const rows = db.prepare(sql).all(...params) as any[];
-
-    // 3. Calculate similarity (Max of variations)
-    const results = rows.map(row => {
-        const docVector = JSON.parse(row.vector);
-        // We take the BEST match from our 3 variations
-        const bestSimilarity = Math.max(...searchVectors.map(qv => cosineSimilarity(qv, docVector)));
-        return { ...row, similarity: bestSimilarity };
-    });
-
-    // 4. Sort and limit
-    return results
+    // 3. Sort merged results and return top N
+    return Array.from(allResults.values())
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, limit)
-        .map(({ vector, ...rest }) => rest);
+        // Clean up internal fields if needed
+        .map(({ distance, vector, ...rest }) => rest);
 }
 
 export async function backfillEmbeddings() {

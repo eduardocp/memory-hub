@@ -73,7 +73,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         type: { type: "string", default: "note", enum: ["note", "idea", "task_update", "summary", "system", "new_bug", "bug_update", "spike_progress", "new_feat", "git_commit"] },
                         project: { type: "string", description: "Project name (optional, defaults to directory name)" },
                         projectRoot: { type: "string", description: "Absolute path to project root (optional)" },
-                        source: { type: "string", description: "Source of the event (user, ai, git)", default: "user" }
+                        source: { type: "string", description: "Source of the event (user, ai, git)", default: "user" },
+                        links: {
+                            type: "array",
+                            description: "Optional list of links to other events",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    target: { type: "string" },
+                                    type: { type: "string" },
+                                    metadata: { type: "object" }
+                                },
+                                required: ["target", "type"]
+                            }
+                        }
                     },
                     required: ["text"],
                 },
@@ -113,18 +126,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             project: z.string().optional(),
             projectRoot: z.string().optional(),
             source: z.string().optional(),
+            links: z.array(z.object({
+                target: z.string(),
+                type: z.string(),
+                metadata: z.record(z.any()).optional()
+            })).optional()
         });
 
         const parsed = schema.parse(args);
         const memory = readMemory(parsed.projectRoot);
 
+        // Ensure structure
+        if (!memory.events) memory.events = [];
+        if (!memory.links) memory.links = [];
+
         // Default to 'memory-hub' if we are in this repo, or dirname
         // Use configRoot if no projectRoot provided
         const effectiveRoot = parsed.projectRoot || configRoot;
         const projectName = parsed.project || path.basename(effectiveRoot);
+        const newEventId = uuidv4();
 
         const newEvent = {
-            id: uuidv4(),
+            id: newEventId,
             timestamp: new Date().toISOString(),
             type: parsed.type || "note",
             text: parsed.text,
@@ -133,6 +156,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
 
         memory.events.push(newEvent);
+
+        // Add links if provided
+        if (parsed.links && parsed.links.length > 0) {
+            for (const link of parsed.links) {
+                memory.links.push({
+                    source: newEventId,
+                    target: link.target,
+                    type: link.type,
+                    metadata: link.metadata
+                });
+            }
+        }
+
         writeMemory(memory, parsed.projectRoot);
 
         return {

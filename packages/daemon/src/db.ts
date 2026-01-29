@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import * as sqliteVec from 'sqlite-vec';
 import { v4 as uuidv4 } from 'uuid';
 
 // Centralized data directory - can be overridden via environment variable
@@ -15,9 +16,24 @@ if (!fs.existsSync(DB_DIR)) {
 }
 
 const db = new Database(DB_PATH);
+sqliteVec.load(db);
 
 // Register UUID function to be used in migrations
 db.function('uuid', () => uuidv4());
+
+// Helper to convert JSON array string to Float32Array Buffer for BLOB storage
+db.function('json_to_vec', (jsonStr: string) => {
+  if (!jsonStr) return null;
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (Array.isArray(parsed)) {
+      return Buffer.from(new Float32Array(parsed).buffer);
+    }
+  } catch (e) {
+    return null;
+  }
+  return null;
+});
 
 function runMigrations() {
   // 1. Create migrations table

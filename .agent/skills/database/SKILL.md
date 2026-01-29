@@ -122,3 +122,19 @@ Follow these conventions when designing schemas:
   CREATE INDEX idx_events_project_id ON events(project_id);
   ```
 
+
+### Graph Relationships
+- **Table**: `links`
+- **Purpose**: "Entangled memories" / Graph edges.
+- **Structure**: `source_id`, `target_id`, `type`, `metadata`.
+- **Usage**: Use this to link any two entities (Events, Projects, etc.) with a specific relationship type.
+
+### Vector Search (sqlite-vec)
+- **Engine**: The project uses `sqlite-vec` extension for high-performance vector operations.
+- **Storage**: Embeddings are stored as `BLOB` (Float32Array) in `event_embeddings`.
+- **Search**: Use `vec_distance_cosine(column, ?)` in SQL queries.
+  ```typescript
+  // Convert number[] to Buffer for query
+  const vecBuffer = Buffer.from(new Float32Array(vector).buffer);
+  const rows = db.prepare('SELECT ..., vec_distance_cosine(vector, ?) as dist ...').all(vecBuffer);
+  ```

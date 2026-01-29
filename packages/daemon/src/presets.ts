@@ -36,22 +36,11 @@ export const MCP_PRESETS: McpPreset[] = [
     {
         id: 'github',
         name: 'GitHub',
-        description: 'Access repositories, issues, and pull requests.',
-        type: 'stdio',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-github'],
-        env: {
-            'GITHUB_TOKEN': '{{TOKEN}}'
-        },
+        description: 'Official GitHub MCP Server. Requires a Personal Access Token (PAT) with appropriate scopes.',
+        type: 'http',
+        url: 'https://api.githubcopilot.com/mcp/',
         auth: {
-            type: 'oauth', // GitHub uses Device flow usually for CLI, but we can do Web Flow
-            oauth: {
-                authorizationUrl: 'https://github.com/login/oauth/authorize',
-                tokenUrl: 'https://github.com/login/oauth/access_token',
-                scope: 'repo user',
-                clientIdEnv: 'GITHUB_CLIENT_ID',
-                clientSecretEnv: 'GITHUB_CLIENT_SECRET'
-            }
+            type: 'bearer'
         }
     }
 ];

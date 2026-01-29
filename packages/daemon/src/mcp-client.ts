@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
 import { OAuthTokens, OAuthClientMetadata } from '@modelcontextprotocol/sdk/shared/auth.js';
 import db from './db.js';
@@ -125,7 +126,10 @@ class DatabaseOAuthProvider implements OAuthClientProvider {
 
 class McpClientService {
     private clients: Map<string, Client> = new Map();
-    private transports: Map<string, StdioClientTransport | SSEClientTransport> = new Map();
+    // Note: SSEClientTransport is deprecated in favor of StreamableHTTPClientTransport.
+    // We maintain support for both during the migration period as some servers
+    // (e.g., Atlassian's Jira MCP) still use SSE transport.
+    private transports: Map<string, StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport> = new Map();
 
     constructor() {
         // Load enabled servers on startup could be placed here or called explicitly
@@ -207,6 +211,10 @@ class McpClientService {
         if (config.auth_config !== undefined) { updates.push('auth_config = ?'); values.push(JSON.stringify(config.auth_config)); }
         if (config.enabled !== undefined) { updates.push('enabled = ?'); values.push(config.enabled ? 1 : 0); }
 
+        // Invalidate tools cache on any update
+        updates.push('tools_cache = NULL');
+        updates.push('tools_updated_at = NULL');
+
         if (updates.length > 0) {
             values.push(id);
             db.prepare(`UPDATE mcp_servers SET ${updates.join(', ')} WHERE id = ?`).run(...values);
@@ -229,6 +237,9 @@ class McpClientService {
         }
 
         console.log(`Starting MCP Server: ${config.name} type=${config.type}`);
+
+        // Note: We do NOT clear DB tool cache here to allow persistence across restarts.
+        // Cache is only cleared on config updates or TTL expiration.
 
         try {
             let transport;
@@ -258,12 +269,19 @@ class McpClientService {
                     }
                 }
 
-                // SSE Client Transport for SDK
-                transport = new SSEClientTransport(new URL(config.url), {
-                    eventSourceInit: { headers } as any,
-                    requestInit: { headers },
-                    authProvider: authProvider
-                });
+                // Use StreamableHTTPClientTransport for HTTP (modern), SSEClientTransport for SSE (legacy)
+                if (config.type === 'http') {
+                    transport = new StreamableHTTPClientTransport(new URL(config.url), {
+                        requestInit: { headers },
+                        authProvider: authProvider
+                    });
+                } else {
+                    transport = new SSEClientTransport(new URL(config.url), {
+                        eventSourceInit: { headers } as any,
+                        requestInit: { headers },
+                        authProvider: authProvider
+                    });
+                }
             } else {
                 let finalEnv = { ...process.env, ...config.env } as Record<string, string>;
 
@@ -298,7 +316,9 @@ class McpClientService {
                 capabilities: {}
             });
 
+            console.log(`[CONNECT] Connecting client...`);
             await client.connect(transport);
+            console.log(`[CONNECT] Client connected.`);
 
             this.transports.set(id, transport);
             this.clients.set(id, client);
@@ -307,7 +327,7 @@ class McpClientService {
             console.log(`MCP Server ${config.name} connected successfully.`);
 
         } catch (e: any) {
-            console.error(`Error connecting to MCP Server ${config.name}:`, e);
+            console.error(`[CONNECT] Error connecting to MCP Server ${config.name}:`, e);
             this.updateStatus(id, 'error');
             throw e;
         }
@@ -326,6 +346,7 @@ class McpClientService {
             this.transports.delete(id);
         }
 
+        // We do not clear DB tool cache on stop
         this.updateStatus(id, 'stopped');
     }
 
@@ -334,9 +355,37 @@ class McpClientService {
     }
 
     async listTools(id: string) {
+        // Check DB cache (TTL 1 hour)
+        const row = db.prepare('SELECT tools_cache, tools_updated_at FROM mcp_servers WHERE id = ?').get(id) as { tools_cache: string, tools_updated_at: string } | undefined;
+
+        if (row?.tools_cache && row?.tools_updated_at) {
+            const updatedAt = new Date(row.tools_updated_at).getTime();
+            if (Date.now() - updatedAt < 3600000) {
+                console.log(`[TOOLS] Returning DB cached tools for server ${id}`);
+                return JSON.parse(row.tools_cache);
+            }
+        }
+
+        console.log(`[TOOLS] listing tools for server ${id} (Remote Fetch)`);
         const client = this.clients.get(id);
         if (!client) throw new Error('Server not connected');
-        return await client.listTools();
+        try {
+            const timeout = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Request timed out after 15s')), 15000)
+            );
+            const result = await Promise.race([client.listTools(), timeout]);
+
+            console.log(`[TOOLS] Success, found ${result.tools.length} tools`);
+
+            // Update DB cache
+            db.prepare("UPDATE mcp_servers SET tools_cache = ?, tools_updated_at = datetime('now') WHERE id = ?")
+                .run(JSON.stringify(result), id);
+
+            return result;
+        } catch (e: any) {
+            console.error(`[TOOLS] Error listing tools:`, e);
+            throw e;
+        }
     }
 
     async callTool(id: string, toolName: string, args: any) {
@@ -356,11 +405,13 @@ class McpClientService {
 
     // Initiate auth by attempting connection - SDK will populate pendingAuthUrl
     async startAuth(id: string, res: Response) {
+        console.log(`[AUTH] Starting auth flow for server ${id}`);
         const config = this.getServer(id);
         if (!config) throw new Error('Server not found');
 
         // Clear any existing auth data to start fresh
         if (config.auth_config?.data) {
+            console.log(`[AUTH] Clearing stale auth data`);
             delete config.auth_config.data.tokens;
             delete config.auth_config.data.clientInfo;
             delete config.auth_config.data.pendingAuthUrl;
@@ -369,20 +420,23 @@ class McpClientService {
 
         // Attempt connection - will fail with UnauthorizedError but populate pendingAuthUrl
         try {
+            console.log(`[AUTH] Connecting to trigger auth challenge...`);
             await this.connect(id);
+            console.log(`[AUTH] Connection succeeded without auth challenge.`);
         } catch (e: any) {
             // Expected to fail with Unauthorized on first run
-            console.log("Auth initiation:", e.message);
+            console.log(`[AUTH] Connection attempt finished with error: ${e.message}`);
         }
 
         // Read back the pending auth URL saved by redirectToAuthorization
         const updatedConfig = this.getServer(id);
         const pendingUrl = updatedConfig?.auth_config?.data?.pendingAuthUrl;
+        console.log(`[AUTH] Pending Auth URL: ${pendingUrl}`);
 
         if (pendingUrl) {
             res.redirect(pendingUrl);
         } else {
-            res.status(400).send('Failed to initiate OAuth flow. Server may not require authentication or there was an error.');
+            res.status(400).send('Failed to initiate OAuth flow. Server may not require authentication or there was an error. Check daemon logs.');
         }
     }
 
@@ -406,10 +460,17 @@ class McpClientService {
             // Create transport with auth provider for token exchange
             const provider = new DatabaseOAuthProvider(id);
 
-            // Create a temporary transport just to finish auth
-            const transport = new SSEClientTransport(new URL(config.url!), {
-                authProvider: provider
-            });
+            // Create a temporary transport just to finish auth - use correct transport type
+            let transport: SSEClientTransport | StreamableHTTPClientTransport;
+            if (config.type === 'http') {
+                transport = new StreamableHTTPClientTransport(new URL(config.url!), {
+                    authProvider: provider
+                });
+            } else {
+                transport = new SSEClientTransport(new URL(config.url!), {
+                    authProvider: provider
+                });
+            }
 
             // Let SDK exchange the code for tokens
             await transport.finishAuth(code);

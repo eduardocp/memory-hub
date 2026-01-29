@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Agent Behavioral Instructions
 
 This document lists the instructions and behavioral patterns defined throughout the development of the Memory Hub project.
@@ -11,7 +15,31 @@ This document lists the instructions and behavioral patterns defined throughout 
 
 ---
 
-## 2. Database Migration Management
+## 2. General Behavioral Rules
+
+- **NEVER start coding if you saw a question, try to anwser first and only start coding when you are allowed**
+
+- **ALWAYS ask before making significant modifications**
+  - Do not refactor, restructure, or significantly change existing code without explicit permission
+  - If a change affects multiple files or introduces architectural changes, ask first
+  - Small bug fixes or requested features can proceed without asking
+
+- **NEVER downgrade packages**
+  - Do not downgrade package versions to "fix" compatibility issues
+  - If a package version conflict arises, **ask the user** how to proceed
+  - Suggest alternatives or workarounds instead of downgrading
+
+- **Preserve existing patterns**
+  - Follow the existing code style and patterns already in the project
+  - If you notice a better pattern, suggest it rather than implementing it directly
+
+- **Be transparent about limitations**
+  - If something isn't working as expected, explain what's happening
+  - Don't hide errors or silently try multiple approaches without informing the user
+
+---
+
+## 3. Database Migration Management
 
 - **NEVER modify past migrations**
   - Migrations represent the history of schema changes
@@ -22,7 +50,7 @@ This document lists the instructions and behavioral patterns defined throughout 
 
 ---
 
-## 3. Clean Architecture in Frontend (packages/web)
+## 4. Clean Architecture in Frontend (packages/web)
 
 ### Folder Structure
 ```
@@ -44,7 +72,7 @@ src/
 
 ---
 
-## 4. Form Validation
+## 5. Form Validation
 
 - Use **Zod** for schema definition
 - Use **React Hook Form** for state management
@@ -53,7 +81,7 @@ src/
 
 ---
 
-## 5. Code Patterns
+## 6. Code Patterns
 
 ### TypeScript
 - Use explicit types when necessary
@@ -67,14 +95,14 @@ src/
 
 ---
 
-## 6. Commits and Git
+## 7. Commits and Git
 
 - Commit messages in **English**
 - Follow conventional commits pattern when applicable (feat, fix, refactor, etc.)
 
 ---
 
-## 7. Development Environment
+## 8. Development Environment
 
 - **API_URL** configurable via environment variable `VITE_API_URL`
 - Default: `http://localhost:3000`

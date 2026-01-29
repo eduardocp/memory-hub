@@ -10,11 +10,12 @@ Local event management per project via a minimal MCP server interface.
 **Responsibilities:**
 - Create and maintain `<folder_decided_by_user>/memory.json` inside each project
 - Append new events
+- **Manage event relationships (Links)**
 - Return all events
 - Clear events
 
 **API Methods:**
-- `memory.add(text, type="note")` - Appends a new event
+- `memory.add(text, type="note", links=[])` - Appends a new event and optional links
 - `memory.list()` - Returns all events
 - `memory.clear()` - Removes all events
 
@@ -28,6 +29,7 @@ Central watchdog service that monitors project memory files, processes events, e
 **Responsibilities:**
 - Watch `<folder_decided_by_user>/memory.json` files
 - Detect new events and insert into global SQLite database
+- **Process Graph Links and Generate Vector Embeddings (Semantic Search)**
 - Execute triggers and scheduled tasks
 - Provide REST API for the frontend
 
@@ -48,6 +50,7 @@ A clean, Linear-inspired interface for displaying all events with clarity and fo
 **Features:**
 - Timeline page with events grouped by day
 - Dark mode theme
+- **Semantic Search and Graph Connections**
 - Search and filtering
 - Daemon status indicator
 - Event details drawer
@@ -78,12 +81,22 @@ A clean, Linear-inspired interface for displaying all events with clarity and fo
       "text": "content",
       "project": "project-name"
     }
+  ],
+  "links": [
+    {
+      "source": "uuid-source",
+      "target": "uuid-target",
+      "type": "string",
+      "metadata": {}
+    }
   ]
 }
 ```
 
 ### SQLite Tables
 - **events** - id, timestamp, type, text, project, source, created_at
+- **links** (Graph) - source_id, target_id, type, metadata, created_at
+- **event_embeddings** (Vector) - event_id, vector, model, created_at
 - **triggers** - id, name, project, event_type, match_text, action_type, action_payload, enabled, created_at, updated_at
 - **schedules** - id, name, cron, action_type, action_payload, enabled, last_run_at, created_at, updated_at
 
@@ -94,7 +107,7 @@ A clean, Linear-inspired interface for displaying all events with clarity and fo
 - **Language:** TypeScript
 - **Runtime:** Node.js
 - **MCP Interface:** Model Context Protocol server
-- **Daemon:** Express/Fastify + chokidar + better-sqlite3
+- **Daemon:** Express/Fastify + chokidar + better-sqlite3 + **sqlite-vec**
 - **Frontend:** React (Next.js or Vite) + Tailwind CSS + Radix UI/shadcn
 
 ---

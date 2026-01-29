@@ -54,8 +54,8 @@ Provide a minimal interface for recording, listing, and clearing memory events i
 - new_feat  
 
 ### MCP Tools (API Methods)
-- `memory.add(text, type="note")`  
-  Appends a new event to `memory.json`.
+- `memory.add(text, type="note", links=[])`  
+  Appends a new event (and optional links) to `memory.json`.
 
 - `memory.list()`  
   Returns all events.
@@ -242,6 +242,14 @@ Timeline
           "text": "string",
           "project": "string"
         }
+      ],
+      "links": [
+        {
+          "source": "uuid-source",
+          "target": "uuid-target",
+          "type": "string",
+          "metadata": {}
+        }
       ]
     }
 
@@ -255,6 +263,19 @@ Timeline
 - project TEXT  
 - source TEXT  
 - created_at TEXT  
+
+#### Table: links (Graph)
+- source_id TEXT
+- target_id TEXT
+- type TEXT
+- metadata TEXT (JSON)
+- created_at DATETIME
+
+#### Table: event_embeddings (Vector)
+- event_id TEXT PRIMARY KEY
+- vector BLOB (Float32Array)
+- model TEXT
+- created_at DATETIME
 
 #### Table: triggers
 - id INTEGER PRIMARY KEY AUTOINCREMENT  

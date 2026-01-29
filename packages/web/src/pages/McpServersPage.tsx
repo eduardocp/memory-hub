@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config';
 import { useToast, ToastContainer } from '../components/Toast';
 import { Select } from '../components/Select';
-import { Server, Power, Trash2, Plus, Terminal, Box, PlayCircle, StopCircle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Server, Power, Trash2, Plus, Terminal, Box, PlayCircle, StopCircle, CheckCircle2, AlertCircle, Lock, Wrench, ChevronDown, ChevronUp, Pencil, RotateCw } from 'lucide-react';
 import clsx from 'clsx';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -25,8 +25,8 @@ interface McpServer {
 
 const serverSchema = z.object({
     name: z.string().min(1, 'Name is required'),
-    type: z.enum(['stdio', 'sse']),
-    url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+    type: z.enum(['stdio', 'sse', 'http']),
+    url: z.url('Must be a valid URL').optional().or(z.literal('')),
     command: z.string().optional(),
     args: z.string().refine((val) => {
         if (!val?.trim()) return true;
@@ -74,7 +74,7 @@ const serverSchema = z.object({
     // If a preset is selected, we don't need to validate URL/command here as they come from the preset
     if (data.presetId) return true;
 
-    if (data.type === 'sse' && !data.url) return false;
+    if ((data.type === 'sse' || data.type === 'http') && !data.url) return false;
     if (data.type === 'stdio' && !data.command) return false;
     return true;
 }, {
@@ -88,6 +88,10 @@ export function McpServersPage() {
     const [servers, setServers] = useState<McpServer[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const submittingRef = useRef(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [serverToDelete, setServerToDelete] = useState<McpServer | null>(null);
     
     // React Hook Form
     const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ServerFormData>({
@@ -142,7 +146,71 @@ export function McpServersPage() {
         }
     };
 
+    const [expandedServerId, setExpandedServerId] = useState<string | null>(null);
+    const [editingServerId, setEditingServerId] = useState<string | null>(null);
+    const [tools, setTools] = useState<any[]>([]);
+    const [loadingTools, setLoadingTools] = useState(false);
+
+    const toggleTools = async (server: any) => {
+        if (expandedServerId === server.id) {
+            setExpandedServerId(null);
+            setTools([]);
+            return;
+        }
+
+        if (server.status !== 'running') {
+            addToast('Server must be running to list tools', 'error');
+            return;
+        }
+
+        setExpandedServerId(server.id);
+        setLoadingTools(true);
+        setTools([]);
+        
+        try {
+            const res = await axios.get(`${API_URL}/mcp/servers/${server.id}/tools`);
+            setTools(res.data.tools || []);
+        } catch (e) {
+            console.error(e);
+            addToast('Failed to fetch tools', 'error');
+        } finally {
+            setLoadingTools(false);
+        }
+    };
+
+    const openEditModal = (server: any) => {
+        setEditingServerId(server.id);
+        const authConfig = server.auth_config || {};
+        const presetId = authConfig.data?.presetId || '';
+        
+        const envString = Object.entries(server.env || {})
+            .map(([k,v]) => `${k}=${v}`)
+            .join('\n');
+
+        reset({
+            name: server.name,
+            type: server.type,
+            url: server.url || '',
+            command: server.command || '',
+            args: server.args?.join(' ') || '',
+            env: envString,
+            presetId: presetId,
+            authType: authConfig.type || 'none',
+            authToken: authConfig.data?.token || '',
+            authClientId: authConfig.data?.clientId || '',
+            authClientSecret: authConfig.data?.clientSecret || '',
+            authScope: authConfig.data?.scope || '',
+            authAuthUrl: authConfig.data?.authorizationUrl || '',
+            authTokenUrl: authConfig.data?.tokenUrl || '',
+        });
+        
+        // Modal is opened by the button click handler setting setShowAddModal(true)
+    };
+
     const onSubmit = async (data: ServerFormData) => {
+        if (submittingRef.current) return; // Prevent double submit
+        submittingRef.current = true;
+        setSubmitting(true);
         try {
             let auth_config: any = undefined;
 
@@ -156,19 +224,37 @@ export function McpServersPage() {
                     data: { presetId: data.presetId }
                 };
 
+                // Include token if auth type is bearer
+                if (preset.auth.type === 'bearer' && data.authToken) {
+                    auth_config.data.token = data.authToken;
+                }
+
+                // Copy OAuth scope from preset if available
+                if (preset.auth.type === 'oauth' && preset.auth.oauth?.scope) {
+                    auth_config.data.scope = preset.auth.oauth.scope;
+                }
+
                 let env = preset.env || {};
                 let args = preset.args || [];
                 
-                await axios.post(`${API_URL}/mcp/servers`, {
+                const payload = {
                     name: data.name,
                     type: preset.type,
-                    url: preset.type === 'sse' ? preset.url : undefined,
+                    url: (preset.type === 'sse' || preset.type === 'http') ? preset.url : undefined,
                     command: preset.type === 'stdio' ? preset.command : undefined,
                     args: preset.type === 'stdio' ? args : undefined,
                     env: preset.type === 'stdio' ? env : undefined,
                     auth_config: auth_config,
                     enabled: true
-                });
+                };
+
+                if (editingServerId) {
+                    await axios.put(`${API_URL}/mcp/servers/${editingServerId}`, payload);
+                    addToast('MCP Server updated successfully', 'success');
+                } else {
+                    await axios.post(`${API_URL}/mcp/servers`, payload);
+                    addToast('MCP Server added successfully', 'success');
+                }
 
             } else {
                 // Manual configuration
@@ -209,36 +295,55 @@ export function McpServersPage() {
                      }
                 }
 
-                await axios.post(`${API_URL}/mcp/servers`, {
+                const payload = {
                     name: data.name,
                     type: data.type,
-                    url: data.type === 'sse' ? data.url : undefined,
+                    url: (data.type === 'sse' || data.type === 'http') ? data.url : undefined,
                     command: data.type === 'stdio' ? data.command : undefined,
                     args: data.type === 'stdio' ? parsedArgs : undefined,
                     env: data.type === 'stdio' ? parsedEnv : undefined,
                     auth_config: auth_config,
                     enabled: true
-                });
+                };
+
+                if (editingServerId) {
+                    await axios.put(`${API_URL}/mcp/servers/${editingServerId}`, payload);
+                    addToast('MCP Server updated successfully', 'success');
+                } else {
+                    await axios.post(`${API_URL}/mcp/servers`, payload);
+                    addToast('MCP Server added successfully', 'success');
+                }
             }
 
-            addToast('MCP Server added successfully', 'success');
+            setEditingServerId(null);
             setShowAddModal(false);
             reset();
             fetchServers();
         } catch (e: any) {
             console.error(e);
             addToast(`Failed to add server: ${e.response?.data?.error || e.message}`, 'error');
+        } finally {
+            setSubmitting(false);
+            submittingRef.current = false;
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this server?')) return;
+    const openDeleteModal = (server: McpServer) => {
+        setServerToDelete(server);
+        setShowDeleteModal(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!serverToDelete) return;
         try {
-            await axios.delete(`${API_URL}/mcp/servers/${id}`);
+            await axios.delete(`${API_URL}/mcp/servers/${serverToDelete.id}`);
             addToast('Server deleted', 'success');
             fetchServers();
         } catch (e) {
              addToast('Failed to delete server', 'error');
+        } finally {
+            setShowDeleteModal(false);
+            setServerToDelete(null);
         }
     };
 
@@ -258,6 +363,7 @@ export function McpServersPage() {
         switch(status) {
             case 'running': return <CheckCircle2 size={18} className="text-green-400" />;
             case 'error': return <AlertCircle size={18} className="text-red-400" />;
+            case 'auth_required': return <Lock size={14} className="text-amber-400" />;
             default: return <StopCircle size={18} className="text-gray-500" />;
         }
     };
@@ -284,7 +390,15 @@ export function McpServersPage() {
                     <p className="text-secondary">Manage Model Context Protocol connections.</p>
                 </div>
                 <button 
-                    onClick={() => setShowAddModal(true)}
+                    onClick={() => {
+                        setEditingServerId(null);
+                        reset({
+                            name: '', type: 'stdio', url: '', command: '', args: '', env: '', 
+                            authType: 'none', authUsername: '', authPassword: '', authToken: '', authHeaders: '', 
+                            authClientId: '', authClientSecret: '', authAuthUrl: '', authTokenUrl: '', authScope: '', presetId: ''
+                        });
+                        setShowAddModal(true);
+                    }}
                     className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors shadow-lg shadow-accent/20"
                 >
                     <Plus size={18} /> Add Server
@@ -309,80 +423,146 @@ export function McpServersPage() {
                 </div>
             ) : (
                 <div className="grid gap-4">
-                    {servers.map(server => (
-                        <div key={server.id} className="bg-card border border-border/50 rounded-xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:bg-surface">
-                            <div className="flex items-start gap-4">
-                                <div className={clsx("mt-1 p-2 rounded-lg bg-surface border border-border/50", {
-                                    "border-green-500/30 bg-green-500/10": server.status === 'running',
-                                    "border-red-500/30 bg-red-500/10": server.status === 'error',
-                                })}>
-                                    <Server size={24} className={clsx({
-                                        "text-green-400": server.status === 'running',
-                                        "text-red-400": server.status === 'error',
-                                        "text-gray-400": server.status === 'stopped'
-                                    })} />
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-3">
-                                        <h3 className="font-semibold text-lg">{server.name}</h3>
-                                        <span className={clsx("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1", {
-                                            "bg-green-500/10 text-green-400 border-green-500/20": server.status === 'running',
-                                            "bg-red-500/10 text-red-400 border-red-500/20": server.status === 'error',
-                                            "bg-gray-500/10 text-gray-400 border-gray-500/20": server.status === 'stopped'
-                                        })}>
-                                            {getStatusIcon(server.status)}
-                                            {server.status}
-                                            {server.type === 'sse' && <span className="text-accent/80 border-l border-white/10 pl-1 ml-1">SSE</span>}
-                                        </span>
+                    {servers.map(server => {
+                        const isAuthRequired = server.auth_config && !server.isAuthenticated;
+                        const displayStatus = isAuthRequired && server.status === 'error' ? 'auth_required' : server.status;
+                        const isExpanded = expandedServerId === server.id;
+                        
+                        return (
+                        <div key={server.id} className="bg-card border border-border/50 rounded-xl transition-all hover:bg-surface overflow-hidden">
+                            <div className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="flex items-start gap-4">
+                                    <div className={clsx("mt-1 p-2 rounded-lg bg-surface border border-border/50", {
+                                        "border-green-500/30 bg-green-500/10": displayStatus === 'running',
+                                        "border-red-500/30 bg-red-500/10": displayStatus === 'error',
+                                        "border-amber-500/30 bg-amber-500/10": displayStatus === 'auth_required',
+                                    })}>
+                                        <Server size={24} className={clsx({
+                                            "text-green-400": displayStatus === 'running',
+                                            "text-red-400": displayStatus === 'error',
+                                            "text-amber-400": displayStatus === 'auth_required',
+                                            "text-gray-400": displayStatus === 'stopped'
+                                        })} />
                                     </div>
-                                    <div className="text-xs font-mono text-secondary mt-1 flex items-center gap-2">
-                                        <Terminal size={12} />
-                                        <span className="opacity-70">
-                                            {server.type === 'sse' ? server.url : `${server.command} ${server.args?.join(' ')}`}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+                                    <div>
+                                        <div className="flex items-center gap-3">
+                                            <h3 className="font-semibold text-lg">{server.name}</h3>
+                                            <span className={clsx("text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1", {
+                                                "bg-green-500/10 text-green-400 border-green-500/20": displayStatus === 'running',
+                                                "bg-red-500/10 text-red-400 border-red-500/20": displayStatus === 'error',
+                                                "bg-amber-500/10 text-amber-400 border-amber-500/20": displayStatus === 'auth_required',
+                                                "bg-gray-500/10 text-gray-400 border-gray-500/20": displayStatus === 'stopped'
+                                            })}>
+                                                {getStatusIcon(displayStatus)}
+                                                {displayStatus === 'auth_required' ? 'Auth Required' : displayStatus}
+                                                {(server.type === 'sse' || server.type === 'http') && <span className="text-accent/80 border-l border-white/10 pl-1 ml-1">{server.type.toUpperCase()}</span>}
+                                            </span>
 
-                            <div className="flex items-center gap-3 w-full md:w-auto">
-                                {server.auth_config?.type === 'oauth' && (
-                                    server.isAuthenticated ? (
-                                        <span className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-                                            <CheckCircle2 size={14} />
-                                            Authenticated
-                                        </span>
-                                    ) : (
-                                        <button
-                                            onClick={() => window.open(`${API_URL}/mcp/auth/start?id=${server.id}`, '_blank')}
-                                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
-                                        >
-                                            Authenticate
-                                        </button>
-                                    )
-                                )}
-                                <button 
-                                    onClick={() => toggleServer(server)}
-                                    className={clsx("flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border", {
-                                        "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20": server.status === 'running',
-                                        "bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20": server.status !== 'running'
-                                    })}
-                                >
-                                    {server.status === 'running' ? (
-                                        <> <Power size={16} /> Stop </>
-                                    ) : (
-                                        <> <PlayCircle size={16} /> Start </>
+                                        </div>
+                                        <div className="text-xs font-mono text-secondary mt-1 flex items-center gap-2">
+                                            <Terminal size={12} />
+                                            <span className="opacity-70">
+                                                {(server.type === 'sse' || server.type === 'http') ? server.url : `${server.command} ${server.args?.join(' ')}`}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                    {server.auth_config?.type === 'oauth' && (
+                                        !server.isAuthenticated ? (
+                                            <button
+                                                onClick={() => window.open(`${API_URL}/mcp/auth/start?id=${server.id}`, '_blank')}
+                                                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
+                                            >
+                                                Authenticate
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                onClick={() => window.open(`${API_URL}/mcp/auth/start?id=${server.id}`, '_blank')}
+                                                className="p-2 rounded-lg text-secondary hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
+                                                title="Re-authenticate (Refresh Tokens)"
+                                            >
+                                                <RotateCw size={18} />
+                                            </button>
+                                        )
                                     )}
-                                </button>
-                                <button 
-                                    onClick={() => handleDelete(server.id)}
-                                    className="p-2 text-secondary hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                    title="Delete"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
+                                    <button
+                                        onClick={() => {
+                                            openEditModal(server);
+                                            setShowAddModal(true); 
+                                        }}
+                                        className="p-2 rounded-lg text-secondary hover:text-white border border-transparent hover:bg-white/5 transition-colors"
+                                        title="Edit Server"
+                                    >
+                                        <Pencil size={18} />
+                                    </button>
+                                    <button
+                                        onClick={() => toggleTools(server)}
+                                        className={clsx("p-2 rounded-lg transition-colors border flex items-center justify-center", 
+                                            isExpanded ? "bg-accent/20 text-accent border-accent/30" : "text-secondary hover:text-white border-transparent hover:bg-white/5"
+                                        )}
+                                        title="View Available Tools"
+                                    >
+                                       {isExpanded ? <ChevronUp size={18} /> : <Wrench size={18} />}
+                                    </button>
+                                    <button 
+                                        onClick={() => toggleServer(server)}
+                                        className={clsx("flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border", {
+                                            "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20": server.status === 'running',
+                                            "bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20": server.status !== 'running'
+                                        })}
+                                    >
+                                        {server.status === 'running' ? (
+                                            <> <Power size={16} /> Stop </>
+                                        ) : (
+                                            <> <PlayCircle size={16} /> Start </>
+                                        )}
+                                    </button>
+                                    <button 
+                                        onClick={() => openDeleteModal(server)}
+                                        className="p-2 text-secondary hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                        title="Delete"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
                             </div>
+                            
+                            {isExpanded && (
+                                <div className="bg-black/20 border-t border-white/5 p-4 md:p-6 animate-in slide-in-from-top-2">
+                                    <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                                        <Wrench size={14} className="text-accent" />
+                                        Available Tools
+                                        <span className="text-secondary font-normal text-xs ml-auto">
+                                            {loadingTools ? 'Fetching...' : `${tools.length} tools found`}
+                                        </span>
+                                    </h4>
+                                    
+                                    {loadingTools ? (
+                                        <div className="py-8 text-center text-secondary text-sm">Loading tools capability...</div>
+                                    ) : tools.length === 0 ? (
+                                        <div className="py-4 text-center text-secondary text-sm">No tools exposed by this server.</div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {tools.map((tool: any) => (
+                                                <div key={tool.name} className="bg-surface/50 border border-white/5 p-3 rounded-lg hover:border-accent/30 transition-colors">
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <code className="text-accent text-xs font-bold bg-accent/10 px-1.5 py-0.5 rounded">
+                                                            {tool.name}
+                                                        </code>
+                                                    </div>
+                                                    <p className="text-xs text-secondary line-clamp-2" title={tool.description}>
+                                                        {tool.description || 'No description provided'}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    ))}
+                    )})}
                 </div>
             )}
 
@@ -392,12 +572,13 @@ export function McpServersPage() {
                     <div className="bg-[#1c1c1f] border border-border rounded-2xl w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200">
                         <div className="p-6 border-b border-white/10 flex justify-between items-center rounded-t-2xl">
                             <h2 className="text-xl font-bold flex items-center gap-2">
-                                <Plus size={20} className="text-accent" /> Add MCP Server
+                                {editingServerId ? <Pencil size={20} className="text-accent" /> : <Plus size={20} className="text-accent" />}
+                                {editingServerId ? 'Edit MCP Server' : 'Add MCP Server'}
                             </h2>
                             <button onClick={() => setShowAddModal(false)} className="text-secondary hover:text-white">✕</button>
                         </div>
                         
-                        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 rounded-b-2xl">
+                        <form onSubmit={handleSubmit(onSubmit, (e) => console.error("Validation Errors:", e))} className="p-6 space-y-4 rounded-b-2xl">
                             <div>
                                 <label className="block text-xs font-medium text-secondary mb-1">Server Name</label>
                                 <input 
@@ -491,7 +672,7 @@ export function McpServersPage() {
                                         </div>
                                         <div>
                                             <h3 className="font-bold text-white text-lg">{presets.find(p => p.id === watchPresetId)?.name}</h3>
-                                            <p className="text-xs text-secondary">Configuration managed by Memory Hub</p>
+                                            <p className="text-xs text-secondary">{presets.find(p => p.id === watchPresetId)?.description}</p>
                                         </div>
                                     </div>
                                     <button 
@@ -505,6 +686,22 @@ export function McpServersPage() {
                                     >
                                         Change
                                     </button>
+                                </div>
+                            )}
+
+                            {/* Show token field when preset uses bearer auth */}
+                            {watchPresetId && presets.find(p => p.id === watchPresetId)?.auth?.type === 'bearer' && (
+                                <div className="mb-4">
+                                    <label className="block text-xs font-medium text-secondary mb-1">Personal Access Token (PAT)</label>
+                                    <input 
+                                        {...register('authToken')}
+                                        type="password"
+                                        className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm outline-none text-white focus:border-accent font-mono"
+                                        placeholder="ghp_••••••••••••••••••••••••••••••••••••"
+                                    />
+                                    <p className="text-xs text-secondary mt-1">
+                                        Create a PAT at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">github.com/settings/tokens</a>
+                                    </p>
                                 </div>
                             )}
 
@@ -698,18 +895,64 @@ export function McpServersPage() {
                                 <button 
                                     type="button"
                                     onClick={() => { setShowAddModal(false); reset(); }}
-                                    className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/5 text-secondary transition-colors"
+                                    disabled={submitting}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/5 text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Cancel
                                 </button>
                                 <button 
                                     type="submit"
-                                    className="px-6 py-2 rounded-lg text-sm font-bold bg-white text-black hover:bg-gray-200 transition-colors"
+                                    disabled={submitting}
+                                    className="px-6 py-2 rounded-lg text-sm font-bold bg-white text-black hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                 >
-                                    Add Server
+                                    {submitting ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Adding...
+                                        </>
+                                    ) : 'Add Server'}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && serverToDelete && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-card border border-border/50 rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                                <Trash2 className="text-red-400" size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Delete Server</h2>
+                                <p className="text-secondary text-sm">This action cannot be undone.</p>
+                            </div>
+                        </div>
+                        
+                        <p className="text-white mb-6">
+                            Are you sure you want to delete <span className="font-bold text-accent">{serverToDelete.name}</span>?
+                        </p>
+                        
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => { setShowDeleteModal(false); setServerToDelete(null); }}
+                                className="px-4 py-2 rounded-lg text-sm font-medium text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDelete}
+                                className="px-4 py-2 rounded-lg text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

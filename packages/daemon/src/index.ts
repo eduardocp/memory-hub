@@ -88,8 +88,8 @@ app.get('/mcp/auth/callback', async (req, res) => {
 // MCP Client Routes
 import { mcpClientService } from './mcp-client.js';
 
-// Init MCP Service (Optional: Auto-start enabled servers)
-// mcpClientService.startAll();
+// Init MCP Service (Auto-start enabled servers)
+mcpClientService.startAll();
 
 app.get('/mcp/servers', (req, res) => {
     try {
@@ -110,6 +110,24 @@ app.post('/mcp/servers', async (req, res) => {
             await mcpClientService.connect(newServer.id).catch(err => console.error("Auto-connect failed:", err));
         }
         res.json(newServer);
+    } catch (e: any) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.put('/mcp/servers/:id', async (req, res) => {
+    try {
+        const updatedServer = mcpClientService.updateServer(req.params.id, req.body);
+
+        // Auto restart if enabled to apply potential config changes (e.g. auth tokens)
+        if (updatedServer?.enabled) {
+            // We don't await detailed connection phases here to keep UI responsive, 
+            // but we ensure clean state transition.
+            await mcpClientService.stop(updatedServer.id);
+            mcpClientService.connect(updatedServer.id).catch(err => console.error(`[MCP] Auto-reconnect failed for ${updatedServer.name}:`, err));
+        }
+
+        res.json(updatedServer);
     } catch (e: any) {
         res.status(500).json({ error: e.message });
     }
