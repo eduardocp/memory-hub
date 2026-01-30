@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Settings, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2, Zap, BookOpen, Box, HelpCircle } from 'lucide-react';
+import { Settings, Folder, Plus, Calendar, Sparkles, FileText, Target, Share2, Zap, BookOpen, Box, HelpCircle, LayoutDashboard, History } from 'lucide-react';
 import clsx from 'clsx';
 import axios from 'axios';
 import { useSocket } from '../../context/SocketContext';
@@ -48,7 +48,8 @@ export function Layout({ children }: LayoutProps) {
   }, []);
 
   const navItems = [
-    { icon: Home, label: 'Home', path: '/' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: History, label: 'Timeline', path: '/timeline' },
     { icon: Folder, label: 'Projects', path: '/projects' },
     { icon: Share2, label: 'Brain', path: '/brain' },
     { icon: Calendar, label: 'Calendar', path: '/calendar' },
@@ -157,7 +158,7 @@ export function Layout({ children }: LayoutProps) {
             </div>
          </header>
 
-         <div className="max-w-5xl mx-auto p-8 pb-32 animate-fade-in-up">
+         <div className="max-w-6xl mx-auto p-8 pb-32 animate-fade-in-up">
             {children}
          </div>
       </main>

@@ -19,7 +19,7 @@
 
 **Complexidade:** Média  
 **Prioridade:** 🥈 Média  
-**Status:** [ ] Não iniciado
+**Status:** [x] Implementado (v1)
 
 ---
 

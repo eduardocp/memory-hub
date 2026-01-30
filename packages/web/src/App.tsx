@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/layout/Layout';
 import { TimelinePage } from './pages/TimelinePage';
+import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { CalendarPage } from './pages/CalendarPage';
@@ -14,8 +16,11 @@ import { InstructionsPage } from './pages/InstructionsPage';
 
 import { SocketProvider } from './context/SocketContext';
 
+const queryClient = new QueryClient();
+
 function App() {
   return (
+    <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <SocketProvider>
           <Routes>
@@ -23,7 +28,8 @@ function App() {
              <Route path="*" element={
                 <Layout>
                   <Routes>
-                    <Route path="/" element={<TimelinePage />} />
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/timeline" element={<TimelinePage />} />
                     <Route path="/projects" element={<ProjectsPage />} />
                     <Route path="/calendar" element={<CalendarPage />} />
                     <Route path="/diary" element={<DiaryPage />} />
@@ -39,6 +45,7 @@ function App() {
           </Routes>
       </SocketProvider>
     </BrowserRouter>
+    </QueryClientProvider>
   );
 }
 

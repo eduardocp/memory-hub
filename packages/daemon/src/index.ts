@@ -174,6 +174,38 @@ app.get('/mcp/presets', (req, res) => {
     res.json(MCP_PRESETS);
 });
 
+// Analytics API
+import { getOverallStats, getActivityHeatmap, getTypeDistribution } from './analytics.js';
+
+app.get('/api/analytics/stats', (req, res) => {
+    try {
+        const range = (req.query.range as any) || 'week';
+        const stats = getOverallStats(range);
+        res.json(stats);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/analytics/heatmap', (req, res) => {
+    try {
+        const heatmap = getActivityHeatmap();
+        res.json(heatmap);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/analytics/distribution', (req, res) => {
+    try {
+        const range = (req.query.range as any) || 'month';
+        const dist = getTypeDistribution(range);
+        res.json(dist);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // API Routes
 
 app.post('/git/hook', async (req, res) => {

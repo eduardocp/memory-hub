@@ -98,6 +98,15 @@
       "text": "Fixed a UI bug on the Timeline page where filter dropdowns were being clipped/cut off. \nThe issue was caused by the parent container having `overflow-x-auto` (horizontal scrolling), which clips absolute positioned children. \nSolution: Replaced `overflow-x-auto` with `flex-wrap` on the filters container in `TimelinePage.tsx`, allowing dropdowns to float correctly over the content.",
       "project": "memory-hub",
       "source": "ai"
+    },
+    {
+      "id": "51a5c1cf-b1e4-4434-883d-af560e8564be",
+      "timestamp": "2026-01-30T02:10:31.403Z",
+      "type": "new_feat",
+      "text": "Completed implementation of Analytics & Insights Dashboard (v1). Includes Daemon analytics endpoints, new DashboardPage, and visual components (Heatmap, Stats, Charts).",
+      "project": "memory",
+      "source": "user"
     }
-  ]
+  ],
+  "links": []
 }
