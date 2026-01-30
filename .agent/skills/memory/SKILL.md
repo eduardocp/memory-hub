@@ -15,5 +15,6 @@ The memory skill provides persistent long-term memory for the project, allowing 
 
 ## Tools
 
+- Project name to be used in all memory operations is: `memory-hub`
 - `memory_list`: Get all project events.
 - `memory_add(text, type)`: Save event. Types: `note`, `idea`, `task_update`.

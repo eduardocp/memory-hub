@@ -663,6 +663,36 @@ DAEMON
 
 ---
 
+## 🧠 13. Context Resonance (Live AI Suggestions)
+
+**Descrição:** Sidebar ou widget que reage em tempo real ao contexto do usuário, oferecendo sugestões proativas baseadas em memórias passadas.
+
+**Funcionalidades:**
+- Sugestões automáticas enquanto o usuário escreve notas ou trabalha na FocusPage
+- Contexto histórico: "Você resolveu um bug similar há 3 semanas"
+- Transformação do banco de dados passivo em assistente ativo
+
+**Complexidade:** Alta  
+**Prioridade:** 🥈 Média  
+**Status:** [ ] Não iniciado
+
+---
+
+## 🌅 14. Smart "Daily Briefing"
+
+**Descrição:** Cartão diário gerado por IA para ajudar no "warm-up" e contexto rápido ao iniciar o dia.
+
+**Funcionalidades:**
+- Resumo do work in progress do dia anterior ("Ontem você parou na tarefa X")
+- Recuperação automática de contexto (links, arquivos abertos)
+- Sugestões de quick wins para começar o dia
+
+**Complexidade:** Média  
+**Prioridade:** 🥈 Média  
+**Status:** [ ] Não iniciado
+
+---
+
 ## 📋 Matriz de Priorização
 
 | Prioridade | Funcionalidade | Valor | Complexidade |
@@ -675,6 +705,8 @@ DAEMON
 | 🥈 Média | Templates de Eventos | Médio | Baixa |
 | 🥈 Média | Time Tracking | Médio | Média |
 | 🥈 Média | Knowledge Base | Médio | Média |
+| 🥈 Média | Context Resonance | Alto | Alta |
+| 🥈 Média | Smart Daily Briefing | Alto | Média |
 | 🥉 Futura | Browser Extension | Alto | Alta |
 | 🥉 Futura | Mobile App/PWA | Médio | Alta |
 | 🥉 Futura | Goals/OKRs | Médio | Média |
